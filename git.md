@@ -57,6 +57,7 @@ Usage: git merge [branch name]
 
 git remote
 Usage: git remote add [variable name] [Remote Server Link] 
+git remote remove origin
 
 git push
 Usage: git push [variable name] master
@@ -79,7 +80,7 @@ git init
 git add README.md
 git commit -m "first commit"
 git branch -M main
-git remote add origin https://github.com/Yeiba/Terraform.git
+git remote add origin https://github.com/Yeiba/iProBooking.git
 git push -u origin main
 
 git remote add origin https://github.com/Yeiba/Terraform.git
