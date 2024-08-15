@@ -1,0 +1,21 @@
+# terraform apply -var-file="dev-app.tfvars"
+
+# Common
+project = "e2esa-demo"
+prefix ="kubectl"
+
+# General 
+aws_region = "us-east-1"
+createdby  = "e2esa"
+
+
+# EKS Manager
+ami                         = "ami-08c40ec9ead489470" #Canonical, Ubuntu, 22.04 LTS, amd64 jammy image build on 2022-09-12
+availability_zone           = "us-east-1a"
+instance_type               = "t2.medium"
+associate_public_ip_address = true
+subnet_id                   = "subnet-#####"
+vpc_security_group_ids      = ["sg-######"]
+key_name                    = "e2esa-kp"
+iam_instance_profile        = "manager_iam_profile"
+disable_api_termination     = false

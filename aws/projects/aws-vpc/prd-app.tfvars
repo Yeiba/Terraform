@@ -2,7 +2,7 @@
 
 # Common
 
-project = "e2esa-tutorials"
+project = "project-prd"
 
 # General 
 aws_region       = "us-east-1"
@@ -11,7 +11,7 @@ tf_workspace_env = "prd"
 
 # VPC 
 create_vpc           = true
-name                 = "e2esa"
+name                 = "jacob"
 cidr                 = "10.0.0.0"
 instance_tenancy     = "default"
 enable_dns_hostnames = true

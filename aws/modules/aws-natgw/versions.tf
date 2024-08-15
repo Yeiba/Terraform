@@ -6,9 +6,4 @@ terraform {
       version = "~> 4.37.0"
     }
   }
-  backend "s3" {}
-}
-provider "aws" {
-  profile = var.aws_profile
-  region = var.aws_region
 }

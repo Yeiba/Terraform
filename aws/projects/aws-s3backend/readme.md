@@ -7,6 +7,6 @@
 
 # rename app_tfvars file name to as app.tfvars and then execute  below command
 ```
- terraform init -backend-config="<env>-backend-config"
+ terraform init -backend-config="./BACKEND/<env>-backend-config"
  terraform apply -var-file="<env>-app.tfvars" -var="createdby=e2esa"
 ```
