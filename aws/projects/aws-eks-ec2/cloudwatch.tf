@@ -1,5 +1,5 @@
 module "cloudwatch" {
-  source = "../../modules/e2esa-module-aws-cloudwatch"
+  source = "../../modules/cloudwatch"
   #source = "git::https://github.com/e2eSolutionArchitect/terraform.git//providers/aws/modules/e2esa-module-aws-cloudwatch?ref=main"
   aws_region = var.aws_region
   # The log group name format is /aws/eks/<cluster-name>/cluster

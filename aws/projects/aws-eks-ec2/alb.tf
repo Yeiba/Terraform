@@ -1,6 +1,6 @@
 
 module "aws_lb" {
-  source                     = "../../modules/e2esa-module-aws-elb"
+  source                     = "../../modules/aws-elb"
   name                       = "${local.name}-${var.lb_name}"
   internal                   = var.lb_internal
   load_balancer_type         = var.lb_load_balancer_type
