@@ -18,7 +18,7 @@ s3_bucket_name        = "jacob-tf-states"
 s3_versioning         = "Enabled"
 enable_lifecycle_rule = false
 
-db_table_name = "myorg-tf-locks"
+db_table_name = "jacob-tf-locks"
 billing_mode  = "PAY_PER_REQUEST"
 hash_key      = "LockID"
 attr_name     = "LockID"
