@@ -7,12 +7,12 @@ resource "aws_s3_bucket" "aws_s3_bucket" {
 }
 
 resource "aws_s3_bucket_acl" "aws_s3_bucket" {
-  bucket = aws_s3_bucket.this.id
+  bucket = aws_s3_bucket.aws_s3_bucket.id
   acl    = var.acl
 }
 
 resource "aws_s3_bucket_public_access_block" "aws_s3_bucket" {
-  bucket                  = aws_s3_bucket.this.id
+  bucket                  = aws_s3_bucket.aws_s3_bucket.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -20,7 +20,7 @@ resource "aws_s3_bucket_public_access_block" "aws_s3_bucket" {
 }
 
 resource "aws_s3_bucket_versioning" "aws_s3_bucket" {
-  bucket = aws_s3_bucket.this.id
+  bucket = aws_s3_bucket.aws_s3_bucket.id
 
   versioning_configuration {
     status = var.s3_versioning
@@ -28,11 +28,11 @@ resource "aws_s3_bucket_versioning" "aws_s3_bucket" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "aws_s3_bucket" {
-  bucket = aws_s3_bucket.this.bucket
+  bucket = aws_s3_bucket.aws_s3_bucket.bucket
 
   rule {
     apply_server_side_encryption_by_default {
-      kms_master_key_id = aws_kms_key.this.arn
+      kms_master_key_id = aws_kms_key.aws_s3_bucket.arn
       sse_algorithm     = "aws:kms"
     }
   }
@@ -46,9 +46,9 @@ resource "aws_kms_key" "aws_s3_bucket" {
 resource "aws_s3_bucket_lifecycle_configuration" "aws_s3_bucket" {
   # Bbucket versioning enabled first
 
-  depends_on = [aws_s3_bucket_versioning.this]
+  depends_on = [aws_s3_bucket_versioning.aws_s3_bucket]
 
-  bucket = aws_s3_bucket.this.bucket
+  bucket = aws_s3_bucket.aws_s3_bucket.bucket
   count  = (var.enable_lifecycle_rule == true ? 1 : 0)
   rule {
     id = "config"
