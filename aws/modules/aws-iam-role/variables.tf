@@ -3,10 +3,11 @@
 # -------------------------------------------
 
 variable "aws_region" {
-  description = "AWS infrastructure regio"
+  description = "AWS infrastructure region"
   type        = string
   default     = null
 }
+
 
 variable "tags" {
   description = "Tag map for the resource"
@@ -14,32 +15,25 @@ variable "tags" {
   default     = {}
 }
 
-
-
 # -------------------------------------------
-# S3 Variables
+# IAM Role
 # -------------------------------------------
 
-variable "s3_bucket_name" {
-  description = "s3 bucket names"
+variable "role_name" {
+  description = "role_name"
+  type        = string
+  default     = "e2esa"
+}
+
+variable "iam_policy_identifiers" {
+  description = "iam_policy_identifiers"
+  type        = list(string)
+  default     = []
+}
+
+variable "policy_arn" {
+  description = "policy_arn"
   type        = string
   default     = null
 }
 
-variable "s3_versioning" {
-  description = "s3 versioning"
-  type        = string
-  default     = "Enabled"
-}
-
-variable "enable_lifecycle_rule" {
-  description = "s3 life cycle"
-  type        = bool
-  default     = false
-}
-
-variable "acl" {
-  description = "s3 bucket names"
-  type        = string
-  default     = "private"
-}

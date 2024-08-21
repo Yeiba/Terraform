@@ -8,38 +8,25 @@ variable "aws_region" {
   default     = null
 }
 
+
 variable "tags" {
   description = "Tag map for the resource"
   type        = map(string)
   default     = {}
 }
 
-
-
 # -------------------------------------------
-# S3 Variables
+# AWS CloudWatch
 # -------------------------------------------
 
-variable "s3_bucket_name" {
-  description = "s3 bucket names"
+variable "cw_name" {
+  description = "CW name"
   type        = string
   default     = null
 }
 
-variable "s3_versioning" {
-  description = "s3 versioning"
-  type        = string
-  default     = "Enabled"
-}
-
-variable "enable_lifecycle_rule" {
-  description = "s3 life cycle"
-  type        = bool
-  default     = false
-}
-
-variable "acl" {
-  description = "s3 bucket names"
-  type        = string
-  default     = "private"
+variable "retention_in_days" {
+  description = "CW retention_in_days"
+  type        = number
+  default     = 30
 }

@@ -8,38 +8,43 @@ variable "aws_region" {
   default     = null
 }
 
+
 variable "tags" {
   description = "Tag map for the resource"
   type        = map(string)
   default     = {}
 }
 
-
-
 # -------------------------------------------
-# S3 Variables
+# Security Group
 # -------------------------------------------
 
-variable "s3_bucket_name" {
-  description = "s3 bucket names"
+variable "sg_name" {
+  description = "sg_name"
   type        = string
-  default     = null
+  default     = ""
 }
 
-variable "s3_versioning" {
-  description = "s3 versioning"
-  type        = string
-  default     = "Enabled"
+variable "app_port" {
+  description = "app_port"
+  type        = number
+  default     = 443
 }
 
-variable "enable_lifecycle_rule" {
-  description = "s3 life cycle"
-  type        = bool
-  default     = false
+variable "aws_vpc_id" {
+  description = "aws_vpc_id"
+  type        = string
+  default     = ""
 }
 
-variable "acl" {
-  description = "s3 bucket names"
+variable "allow_all_ips" {
+  description = "allow_all_ips"
   type        = string
-  default     = "private"
+  default     = "0.0.0.0/0"
+}
+
+variable "aws_vpc_main_cidr_block" {
+  description = "aws_vpc_main_cidr_block"
+  type        = list(string)
+  default     = []
 }
