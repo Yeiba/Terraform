@@ -7,7 +7,7 @@ resource "aws_route_table" "private" {
   }
 
   tags = {
-    Name = "${local.env}-private"
+    Name = "${var.env}-private"
   }
 }
 
@@ -20,7 +20,7 @@ resource "aws_route_table" "public" {
   }
 
   tags = {
-    Name = "${local.env}-public"
+    Name = "${var.env}-public"
   }
 }
 

@@ -1,11 +1,7 @@
 data "aws_caller_identity" "current" {}
 
-
-########################################################
-#======create iam role
-########################################################
 resource "aws_iam_role" "eks_admin" {
-  name = "${local.env}-${local.eks_name}-eks-admin"
+  name = "${var.env}-${var.eks_name}-eks-admin"
 
   assume_role_policy = <<POLICY
 {
@@ -22,10 +18,6 @@ resource "aws_iam_role" "eks_admin" {
 }
 POLICY
 }
-
-########################################################
-#======create iam policy
-########################################################
 
 resource "aws_iam_policy" "eks_admin" {
   name = "AmazonEKSAdminPolicy"
@@ -55,22 +47,16 @@ resource "aws_iam_policy" "eks_admin" {
 }
 POLICY
 }
-########################################################
-#======attache iam role to iam policy
-########################################################
+
 resource "aws_iam_role_policy_attachment" "eks_admin" {
   role       = aws_iam_role.eks_admin.name
   policy_arn = aws_iam_policy.eks_admin.arn
 }
-########################################################
-#======attache iam user
-########################################################
+
 resource "aws_iam_user" "manager" {
   name = "manager"
 }
-########################################################
-#======select iam role policy 
-########################################################
+
 resource "aws_iam_policy" "eks_assume_admin" {
   name = "AmazonEKSAssumeAdminPolicy"
 
@@ -89,9 +75,7 @@ resource "aws_iam_policy" "eks_assume_admin" {
 }
 POLICY
 }
-########################################################
-#======attache iam user to iam role policy 
-########################################################
+
 resource "aws_iam_user_policy_attachment" "manager" {
   user       = aws_iam_user.manager.name
   policy_arn = aws_iam_policy.eks_assume_admin.arn

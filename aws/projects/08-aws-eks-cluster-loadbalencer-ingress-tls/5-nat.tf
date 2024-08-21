@@ -2,7 +2,7 @@ resource "aws_eip" "nat" {
   domain = "vpc"
 
   tags = {
-    Name = "${local.env}-nat"
+    Name = "${var.env}-nat"
   }
 }
 
@@ -11,7 +11,7 @@ resource "aws_nat_gateway" "nat" {
   subnet_id     = aws_subnet.public_zone1.id
 
   tags = {
-    Name = "${local.env}-nat"
+    Name = "${var.env}-nat"
   }
 
   depends_on = [aws_internet_gateway.igw]

@@ -1,12 +1,5 @@
-provider "aws" {
-  region = local.region
-  profile= local.profile
-
-}
-
 terraform {
   required_version = ">= 1.0"
-
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -14,4 +7,8 @@ terraform {
     }
   }
   backend "s3" {}
+}
+provider "aws" {
+  profile = var.aws_profile
+  region = var.aws_region
 }
