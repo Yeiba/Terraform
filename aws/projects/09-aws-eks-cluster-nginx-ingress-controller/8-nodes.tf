@@ -36,7 +36,7 @@ resource "aws_iam_role_policy_attachment" "amazon_ec2_container_registry_read_on
 resource "aws_eks_node_group" "general" {
   cluster_name    = aws_eks_cluster.eks.name
   version         = var.eks_version
-  node_group_name = "general"
+  node_group_name = var.node_group_name
   node_role_arn   = aws_iam_role.nodes.arn
 
   subnet_ids = [
@@ -44,21 +44,21 @@ resource "aws_eks_node_group" "general" {
     aws_subnet.private_zone2.id
   ]
 
-  capacity_type  = "ON_DEMAND"
-  instance_types = ["t3.large"]
+  capacity_type  = var.capacity_type
+  instance_types = [var.instance_types]
 
   scaling_config {
-    desired_size = 1
-    max_size     = 10
-    min_size     = 0
+    desired_size = var.desired_size
+    max_size     = var.max_size
+    min_size     = var.min_size
   }
 
   update_config {
-    max_unavailable = 1
+    max_unavailable = var.max_unavailable
   }
 
   labels = {
-    role = "general"
+    role = var.role
   }
 
   depends_on = [

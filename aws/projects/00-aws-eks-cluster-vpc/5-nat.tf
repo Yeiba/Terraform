@@ -1,5 +1,5 @@
 resource "aws_eip" "nat" {
-  domain = "vpc"
+  domain = var.net_domain
 
   tags = {
     Name = "${var.env}-nat"
