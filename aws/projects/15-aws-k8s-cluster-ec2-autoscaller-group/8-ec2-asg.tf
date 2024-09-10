@@ -1,5 +1,6 @@
 # EC2 Instance for Kubernetes Master
 resource "aws_instance" "k8s_master" {
+  count                  = 3  # Change to 3 master nodes
   ami                    = var.ami_id
   instance_type          = var.instance_type
   key_name               = var.key_name
