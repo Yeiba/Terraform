@@ -1,8 +1,8 @@
 # EC2 Instance for Kubernetes Master
 resource "aws_instance" "k8s_master" {
-  count                  = 3  # Change to 3 master nodes
+  count                  = var.master_count  # Change to 3 master nodes
   ami                    = var.ami_id
-  instance_type          = var.instance_type
+  instance_type          = var.master_instance_type
   key_name               = var.key_name
   subnet_id              = aws_subnet.public_zone1.id # Master should be in the public subnet
   security_groups        = [aws_security_group.k8s_sg.name]
@@ -48,7 +48,7 @@ resource "aws_instance" "k8s_master" {
 resource "aws_launch_configuration" "worker_lc" {
   name          = "worker-lc"
   image_id      = var.ami_id
-  instance_type = var.instance_type
+  instance_type = var.worker_instance_type
   security_groups = [aws_security_group.k8s_sg.id]
   key_name      = var.key_name
 

@@ -30,14 +30,15 @@ variable "subnet_public_ip_range_zone2" {}
 variable "net_domain" {}
 
 # nodes
-variable "node_group_name" {}
-variable "capacity_type" {}
-variable "instance_types" {}
-variable "desired_size" {}
-variable "max_size" {}
+variable "ami_id" {}
+variable "master_instance_type" {}
+variable "master_count" {}
+variable "worker_instance_type" {}
+variable "key_name" {}
 variable "min_size" {}
-variable "max_unavailable" {}
-variable "role" {}
+variable "max_size" {}
+variable "desired_capacity" {}
+
 
 # S3
 variable "s3_bucket_names" {}
