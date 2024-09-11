@@ -1,0 +1,254 @@
+---
+- hosts: all
+  become: yes
+  vars:
+    k8s_url_apt_key: "https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key"
+    k8s_gpgpath: /usr/share/keyrings/kubernetes-apt-keyring.gpg
+    k8s_repository: "https://pkgs.k8s.io/core:/stable:/v1.28/deb/"
+
+  tasks:
+   - name: Docker Installation
+     apt:
+       name: docker.io
+       state: present
+       update_cache: true
+
+   - name: Install APT Transport HTTPS
+     apt:
+       name: apt-transport-https
+       state: present
+
+   - name: Install curl
+     apt:
+       name: curl
+       state: present
+
+   - name: Get Kubernetes package key
+     shell: curl -fsSL {{ k8s_url_apt_key }} | gpg --dearmor -o {{ k8s_gpgpath }}
+     args:
+       creates: "{{ k8s_gpgpath }}"
+
+   - name: Install Kubernetes repository
+     apt_repository:
+       filename: kubernetes
+       repo: "deb [signed-by={{ k8s_gpgpath }}] {{ k8s_repository }} /"
+
+   - name: Kubelet Install
+     apt:
+       name: kubelet
+       state: present
+       update_cache: true
+
+   - name: Kubeadm Install
+     apt:
+       name: kubeadm
+       state: present
+       update_cache: true
+
+## Install cri-dockerd as Docker Engine shim for Kubernetes
+      
+   - name: Get cri-dockerd latest Version number
+     uri:
+      url: https://api.github.com/repos/Mirantis/cri-dockerd/releases/latest
+      timeout: 10
+     register: cri_dockerd_latest
+
+   - debug:
+      var: cri_dockerd_latest.json.tag_name
+
+   - name: Download cri-dockerd
+     get_url:
+        url: https://github.com/Mirantis/cri-dockerd/releases/download/{{ cri_dockerd_latest.json.tag_name }}/cri-dockerd-{{ cri_dockerd_latest.json.tag_name | replace('v','') }}.amd64.tgz
+        dest: /home/ubuntu
+
+   - name: Extract cri_dockerd
+     ansible.builtin.unarchive:
+        src: /home/ubuntu/cri-dockerd-{{ cri_dockerd_latest.json.tag_name | replace('v','') }}.amd64.tgz
+        dest: /usr/local/bin/
+        extra_opts: [--strip-components=1]
+        remote_src: yes
+
+   - name: systemd units for cri-dockerd - cri-docker.service
+     get_url:
+        url: https://raw.githubusercontent.com/Mirantis/cri-dockerd/master/packaging/systemd/cri-docker.service
+        dest: /etc/systemd/system/
+
+   - name: systemd units for cri-dockerd - cri-docker.socket
+     get_url:
+        url: https://raw.githubusercontent.com/Mirantis/cri-dockerd/master/packaging/systemd/cri-docker.socket
+        dest: /etc/systemd/system/
+
+   - name: Configure systemd for cri-dockerd
+     replace: 
+        path: /etc/systemd/system/cri-docker.service
+        regexp: "/usr/bin/cri-dockerd"
+        replace: "/usr/local/bin/cri-dockerd"
+
+   - name: Just force systemd to reread configs (2.4 and above)
+     ansible.builtin.systemd:
+        daemon_reload: yes
+
+   - name: Start and Enable the cri-dockerd service - cri-docker.service
+     ansible.builtin.systemd:
+      name: cri-docker.service
+      state: started
+      enabled: yes
+
+   - name: Start and Enable the cri-dockerd service - cri-docker.socket
+     ansible.builtin.systemd:
+      name: cri-docker.socket
+      state: started
+      enabled: yes
+##
+
+### Master Node Configurations
+- hosts: masters_first
+  become: yes
+  vars_files:
+    - ansible_vars_file.yml
+  tasks:
+   - name: Kubectl Install
+     apt:
+       name: kubectl
+       state: present
+       force: yes
+
+   - name: Start the cluster
+     shell: kubeadm init --pod-network-cidr=192.168.0.0/16 --cri-socket /run/cri-dockerd.sock --control-plane-endpoint "{{ master_lb }}":6443 --upload-certs >> cluster.txt
+     register: result
+     args:
+      chdir: $HOME
+      creates: cluster.txt
+  
+   - name: Sleep for 20 seconds
+     wait_for:
+      timeout: 20
+
+   - name: Create .kube directory
+     become: yes
+     become_user: ubuntu
+     file:
+       path: $HOME/.kube
+       state: directory
+       mode: 0755
+
+   - name: Check admin.conf file exists.
+     stat:
+       path: /etc/kubernetes/admin.conf
+     register: k8s_conf
+
+   - name: Copy admin.conf to user's kube config
+     copy:
+       src: /etc/kubernetes/admin.conf
+       dest: /home/ubuntu/.kube/config
+       remote_src: yes
+       owner: ubuntu
+     when: k8s_conf.stat.exists
+
+   - name: Install Pod network
+     become_user: ubuntu
+     shell: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml >> pod_setup.txt
+     args:
+       chdir: $HOME
+       creates: pod_setup.txt
+
+   - name: get default kubeadm config
+     shell: kubeadm config print init-defaults > kubeadm_config.yaml
+     args:
+       chdir: $HOME
+       creates: kubeadm-config.yaml
+
+   - name: Add cri socket to kubeadm config
+     replace:
+      path: $HOME/kubeadm_config.yaml
+      regexp: "/var/run/containerd/containerd.sock"
+      replace: "/run/cri-dockerd.sock"
+
+   - name: Create a new certificate key
+     shell: kubeadm init phase upload-certs --upload-certs --config $HOME/kubeadm_config.yaml
+     register: join_certificate_key
+
+   - name: Get join command
+     shell: kubeadm token create --print-join-command --certificate-key "{{ join_certificate_key.stdout_lines[2] }}"
+     register: join_command
+
+   - debug:
+      var: join_command
+
+   - name: Copy join command to local file
+     local_action: copy content="{{ join_command.stdout_lines[0] }}" dest="./join_command"
+
+   - name: Get worker node join command
+     shell: kubeadm token create --print-join-command
+     register: join_node_command
+
+   - name: Copy worker node join command to local file
+     local_action: copy content="{{ join_node_command.stdout_lines[0] }}" dest="./join_node_command"
+###
+
+#### Configure other master nodes
+
+- hosts: masters_others
+  become: yes
+  tasks:
+   - name: Kubectl Install
+     apt:
+       name: kubectl
+       state: present
+       force: yes
+
+   - name: Copy the master join command to server location
+     copy: src=join_command dest=/tmp/join_command.sh mode=0777
+
+   - name: Add cri socket to kubelet
+     replace:
+      path: /tmp/join_command.sh
+      regexp: "--token"
+      replace: "--cri-socket='/run/cri-dockerd.sock' --token"
+
+   - name: Join the master node to cluster
+     command: sh /tmp/join_command.sh
+
+   - name: Sleep for 20 seconds
+     wait_for:
+      timeout: 20
+
+   - name: Create .kube directory
+     become: yes
+     become_user: ubuntu
+     file:
+       path: $HOME/.kube
+       state: directory
+       mode: 0755
+
+   - name: Check admin.conf file exists.
+     stat:
+       path: /etc/kubernetes/admin.conf
+     register: k8s_conf
+
+   - name: Copy admin.conf to user's kube config
+     copy:
+       src: /etc/kubernetes/admin.conf
+       dest: /home/ubuntu/.kube/config
+       remote_src: yes
+       owner: ubuntu
+     when: k8s_conf.stat.exists
+
+####
+
+##### Worker Node Configurations
+- hosts: workers
+  become: yes
+  tasks:
+    - name: Copy the worker join command to server location
+      copy: src=join_node_command dest=/tmp/join_node_command.sh mode=0777
+
+    - name: Add cri socket to kubelet
+      replace:
+        path: /tmp/join_node_command.sh
+        regexp: "--token"
+        replace: "--cri-socket='/run/cri-dockerd.sock' --token"
+
+    - name: Join the worker node to cluster
+      command: sh /tmp/join_node_command.sh
+#####

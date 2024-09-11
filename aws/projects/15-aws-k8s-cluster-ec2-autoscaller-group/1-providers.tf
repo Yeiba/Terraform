@@ -1,4 +1,5 @@
 provider "aws" {
+  profile = "default"
   region = var.region
 }
 
@@ -8,7 +9,7 @@ provider "kubernetes" {
 
 provider "helm" {
   kubernetes {
-    config_path = "~/.kube/config"
+    config_path = "~/.kube/config" # or other path to your kubeconfig file
   }
 }
 
