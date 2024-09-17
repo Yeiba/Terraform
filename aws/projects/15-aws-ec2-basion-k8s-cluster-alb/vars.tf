@@ -46,10 +46,10 @@ variable "ssh_user" {
 
 variable "master_instance_type" {
     type = string
-    default = "t3.small"
+    default = "t3.medium" # t3.medium t3.small
 }
 
 variable "worker_instance_type" {
     type = string
-    default = "t3.micro"
+    default = "t3.medium" # t3.small
 }

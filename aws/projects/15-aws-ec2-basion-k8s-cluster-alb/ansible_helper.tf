@@ -114,8 +114,12 @@ resource "null_resource" "run_ansible" {
 
   provisioner "remote-exec" {
     inline = [
-      "echo 'starting ansible playbooks...'",
-      "sleep 60 && ansible-playbook -i /home/ubuntu/inventory /home/ubuntu/ansible/play.yml ",
+      "echo 'Checking environment'",
+      "echo 'PATH: $PATH'",
+      "echo 'User: $(whoami)'",
+      "which ansible-playbook || echo 'ansible-playbook not found'",
+      "sleep 60",
+      "ansible-playbook -i /home/ubuntu/inventory /home/ubuntu/ansible/play.yml || echo 'Failed to run playbook'"
     ] 
   }
 }
