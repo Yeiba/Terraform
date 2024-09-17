@@ -18,14 +18,14 @@ resource "aws_lb" "k8_workers_nlb" {
 resource "aws_lb_target_group" "k8_workers_nlb_tg" {
   depends_on = [aws_lb.k8_workers_nlb]
   name        = "k8-workers-nlb-tg"
-  port        = data.local_file.http_port.content  # Default NodePort for Nginx Ingress HTTP
+  port        = local.http_port  # Default NodePort for Nginx Ingress HTTP
   protocol    = "TCP"
   vpc_id      = module.vpc.vpc_id
   target_type = "instance" # instance or ip
 
   health_check {
     protocol            = "TCP"
-    port                = data.local_file.http_port.content
+    port                = local.http_port
     healthy_threshold   = 2
     unhealthy_threshold = 2
     interval            = 10
@@ -36,7 +36,7 @@ resource "aws_lb_target_group" "k8_workers_nlb_tg" {
 resource "aws_lb_listener" "nlb_listener_http" {
   depends_on = [aws_lb_target_group.k8_workers_nlb_tg]
   load_balancer_arn = aws_lb.k8_workers_nlb.arn
-  port              = data.local_file.http_port.content
+  port              = local.http_port
   protocol          = "TCP"
 
   default_action {
@@ -49,7 +49,7 @@ resource "aws_lb_listener" "nlb_listener_http" {
 resource "aws_lb_listener" "nlb_listener_https" {
   depends_on = [aws_lb_target_group.k8_workers_nlb_tg]
   load_balancer_arn = aws_lb.k8_workers_nlb.arn
-  port              = data.local_file.https_port.content  # Default NodePort for Nginx Ingress HTTPS
+  port              = local.https_port  # Default NodePort for Nginx Ingress HTTPS
   protocol          = "TCP"
 
   default_action {
@@ -64,7 +64,7 @@ resource "aws_lb_target_group_attachment" "k8_workers_nlb_attachment" {
   count            = length(aws_instance.workers.*.id)
   target_group_arn = aws_lb_target_group.k8_workers_nlb_tg.arn
   target_id        = aws_instance.workers.*.id[count.index]
-  port             = data.local_file.http_port.content
+  port             = local.http_port
 }
 
 
@@ -72,8 +72,8 @@ resource "aws_lb_target_group_attachment" "k8_workers_nlb_attachment" {
 resource "aws_security_group_rule" "workers_ingress_from_nlb_http" {
   depends_on = [aws_lb_target_group.k8_workers_alb_tg]
   type              = "ingress"
-  from_port         = data.local_file.http_port.content
-  to_port           = data.local_file.http_port.content
+  from_port         = local.http_port
+  to_port           = local.http_port
   protocol          = "tcp"
   cidr_blocks       = module.vpc.private_subnets_cidr_blocks
   security_group_id = aws_security_group.k8_workers.id
@@ -82,8 +82,8 @@ resource "aws_security_group_rule" "workers_ingress_from_nlb_http" {
 resource "aws_security_group_rule" "workers_ingress_from_nlb_https" {
   depends_on = [aws_lb_target_group.k8_workers_alb_tg]
   type              = "ingress"
-  from_port         = data.local_file.https_port.content
-  to_port           = data.local_file.https_port.content
+  from_port         = local.https_port
+  to_port           = local.https_port
   protocol          = "tcp"
   cidr_blocks       = module.vpc.private_subnets_cidr_blocks
   security_group_id = aws_security_group.k8_workers.id
@@ -146,14 +146,14 @@ resource "aws_lb" "k8_workers_alb" {
 resource "aws_lb_target_group" "k8_workers_alb_tg" {
   depends_on = [aws_lb.k8_workers_alb]
   name        = "k8-workers-alb-tg"
-  port        = data.local_file.http_port.content
+  port        = local.http_port
   protocol    = "HTTP"
   vpc_id      = module.vpc.vpc_id
   target_type = "ip"
 
   health_check {
     path                = "/healthz"  # Default health check path for Nginx Ingress
-    port                = data.local_file.http_port.content
+    port                = local.http_port
     protocol            = "HTTP"
     healthy_threshold   = 2
     unhealthy_threshold = 10
@@ -205,21 +205,21 @@ resource "aws_lb_target_group_attachment" "k8_workers_alb_attachment" {
   count            = length(aws_instance.workers.*.id)  # Use the IP addresses of your worker nodes
   target_group_arn = aws_lb_target_group.k8_workers_alb_tg.arn
   target_id        = aws_instance.workers.*.private_ip[count.index]  # Attach the worker node private IPs
-  port             = data.local_file.http_port.content
+  port             = local.http_port
 }
 
 # Fetch AWS IP ranges for the ALB in your region
 data "aws_ip_ranges" "alb_ips" {
   services = ["ALB"]
-  regions  = var.availability_zones  # Replace with your region if different
+  regions  = ["us-east-1"]  # Replace with your region if different
 }
 
 # Allow HTTP traffic from ALB to worker nodes
 resource "aws_security_group_rule" "workers_ingress_from_alb_http" {
   depends_on = [aws_lb_target_group.k8_workers_alb_tg]
   type              = "ingress"
-  from_port         = data.local_file.http_port.content  # Ensure this is a valid port number for HTTP
-  to_port           = data.local_file.http_port.content
+  from_port         = local.http_port  # Ensure this is a valid port number for HTTP
+  to_port           = local.http_port
   protocol          = "tcp"
   cidr_blocks       = data.aws_ip_ranges.alb_ips.cidr_blocks # Use the ALB's DNS or its CIDR (can change depending on your ALB setup)
   security_group_id = aws_security_group.k8_workers.id  # Target the worker nodes' security group
@@ -229,8 +229,8 @@ resource "aws_security_group_rule" "workers_ingress_from_alb_http" {
 resource "aws_security_group_rule" "workers_ingress_from_alb_https" {
   depends_on = [aws_lb_target_group.k8_workers_alb_tg]
   type              = "ingress"
-  from_port         = data.local_file.https_port.content # Ensure this is a valid port number for HTTPS
-  to_port           = data.local_file.https_port.content
+  from_port         = local.https_port # Ensure this is a valid port number for HTTPS
+  to_port           = local.https_port
   protocol          = "tcp"
   cidr_blocks       = data.aws_ip_ranges.alb_ips.cidr_blocks  # Use the ALB's DNS or its CIDR (can change depending on your ALB setup)
   security_group_id = aws_security_group.k8_workers.id  # Target the worker nodes' security group
@@ -346,9 +346,15 @@ data "local_file" "https_port" {
   filename = "${path.module}/https_port"
 }
 
+locals {
+  http_port  = tonumber(trimspace(data.local_file.http_port.content))
+  https_port = tonumber(trimspace(data.local_file.https_port.content))
+  pod_ip = tonumber(trimspace(data.local_file.pod_ip.content))
+}
+
 # resource "aws_lb_target_group_attachment" "workers_tg_attachment" {
 #   depends_on          = [null_resource.get_pod_ip]
 #   target_group_arn    = aws_lb_target_group.k8_workers_tg.arn
-#   target_id           = data.local_file.pod_ip.content
+#   target_id           = local.pod_ip
 #   port                = 80
 # }
