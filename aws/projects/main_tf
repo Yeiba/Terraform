@@ -1,0 +1,420 @@
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  profile = "default"
+  region	= var.AWS_REGION
+}
+
+
+module "vpc" {
+  source = "terraform-aws-modules/vpc/aws"
+
+  name = "k8-vpc"
+  cidr = var.vpc_cidr
+
+  azs             = var.availability_zones
+  private_subnets = var.private_subnets
+  public_subnets  = var.public_subnets
+
+  enable_nat_gateway = true
+  single_nat_gateway = true
+  create_igw = true
+  map_public_ip_on_launch = true
+
+  tags = {
+    Terraform = "true"
+    Environment = "dev"
+  }
+}
+
+
+resource "aws_security_group" "allow_ssh" {
+    name        = "allow_ssh"
+    description = "Allow ssh inbound traffic"
+    vpc_id    = module.vpc.vpc_id
+
+    ingress {
+        from_port   = 22
+        to_port     = 22
+        protocol    = "tcp"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+    ingress {
+        from_port   = -1
+        to_port     = -1
+        protocol    = "icmp"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    egress {
+        from_port   = 0
+        to_port     = 0
+        protocol    = "-1"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+}
+
+resource "aws_security_group" "k8_nondes" {
+    name = "k8_nodes"
+    description = "sec group for k8 nodes"
+    vpc_id = module.vpc.vpc_id
+
+    ingress {
+        from_port   = 22
+        to_port     = 22
+        protocol    = "tcp"
+        cidr_blocks = ["${var.vpc_cidr}"]
+    }
+
+    ingress {
+        from_port   = -1
+        to_port     = -1
+        protocol    = "icmp"
+        cidr_blocks = ["${var.vpc_cidr}"]
+    }
+
+    egress {
+        from_port   = 0
+        to_port     = 0
+        protocol    = "-1"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+  
+}
+
+resource "aws_security_group" "k8_masters" {
+    name = "k8_masters"
+    description = "sec group for k8 master nodes"
+    vpc_id = module.vpc.vpc_id
+
+    ingress {
+        #Kubernetes API server
+        from_port   = 6443
+        to_port     = 6443
+        protocol    = "tcp"
+        cidr_blocks = ["${var.vpc_cidr}"]
+    }
+
+    ingress {
+        #etcd server client API
+        from_port   = 2379
+        to_port     = 2380
+        protocol    = "tcp"
+        cidr_blocks = ["${var.vpc_cidr}"]
+    }
+
+    ingress {
+        #Kubelet API
+        from_port   = 10250
+        to_port     = 10250
+        protocol    = "tcp"
+        cidr_blocks = ["${var.vpc_cidr}"]
+    }
+
+    ingress {
+        #kube-scheduler
+        from_port   = 10259
+        to_port     = 10259
+        protocol    = "tcp"
+        cidr_blocks = ["${var.vpc_cidr}"]
+    }
+
+    ingress {
+        #kube-controller-manager
+        from_port   = 10257
+        to_port     = 10257
+        protocol    = "tcp"
+        cidr_blocks = ["${var.vpc_cidr}"]
+    }
+  
+}
+
+
+resource "aws_security_group" "k8_workers" {
+    name = "k8_workers"
+    description = "sec group for k8 worker nodes"
+    vpc_id = module.vpc.vpc_id
+
+    ingress {
+        #Kubelet API
+        from_port   = 10250
+        to_port     = 10250
+        protocol    = "tcp"
+        cidr_blocks = ["${var.vpc_cidr}"]
+    }
+
+    ingress {
+        #NodePort Services†
+        from_port   = 30000
+        to_port     = 32767
+        protocol    = "tcp"
+        cidr_blocks = ["${var.vpc_cidr}"]
+    }
+
+    # Allow all outbound traffic
+    egress {
+        from_port   = 0
+        to_port     = 0
+        protocol    = "-1"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+}
+
+
+#Bastion
+resource "aws_instance" "bastion" {
+  ami           = var.ami_id
+  instance_type = "t3.micro"
+  subnet_id = module.vpc.public_subnets[0]
+  associate_public_ip_address = "true"
+  security_groups = [aws_security_group.allow_ssh.id]
+  key_name          =   aws_key_pair.k8_ssh.key_name
+  ##https://github.com/hashicorp/terraform/issues/30134
+  user_data = <<-EOF
+                #!bin/bash
+                echo "PubkeyAcceptedKeyTypes=+ssh-rsa" >> /etc/ssh/sshd_config.d/10-insecure-rsa-keysig.conf
+                systemctl reload sshd
+                echo "${tls_private_key.ssh.private_key_pem}" >> /home/ubuntu/.ssh/id_rsa
+                chown ubuntu /home/ubuntu/.ssh/id_rsa
+                chgrp ubuntu /home/ubuntu/.ssh/id_rsa
+                chmod 600   /home/ubuntu/.ssh/id_rsa
+                echo "starting ansible install"
+                apt-add-repository ppa:ansible/ansible -y
+                apt update
+                apt install ansible -y
+                EOF
+
+  tags = {
+    Name = "Bastion"
+  }
+}
+
+#Master
+resource "aws_instance" "masters" {
+  count         = var.master_node_count
+  ami           = var.ami_id
+  instance_type = var.master_instance_type
+  subnet_id = "${element(module.vpc.private_subnets, count.index)}"
+  key_name          =   aws_key_pair.k8_ssh.key_name
+  security_groups = [aws_security_group.k8_nondes.id, aws_security_group.k8_masters.id]
+
+  tags = {
+    Name = format("Master-%02d", count.index + 1)
+  }
+}
+
+#Worker
+resource "aws_instance" "workers" {
+  count         = var.worker_node_count
+  ami           = var.ami_id
+  instance_type = var.worker_instance_type
+  subnet_id = "${element(module.vpc.private_subnets, count.index)}"
+  key_name          =   aws_key_pair.k8_ssh.key_name
+  security_groups = [aws_security_group.k8_nondes.id, aws_security_group.k8_workers.id]
+
+  tags = {
+    Name = format("Worker-%02d", count.index + 1)
+  }
+}
+
+resource "tls_private_key" "ssh" {
+    algorithm = "RSA"
+    rsa_bits  = "4096"
+}
+  
+resource "local_file" "k8_ssh_key" {
+    filename = "k8_ssh_key.pem"
+    file_permission = "600"
+    content  = tls_private_key.ssh.private_key_pem
+}
+
+resource "aws_key_pair" "k8_ssh" {
+key_name   = "k8_ssh"
+public_key = tls_private_key.ssh.public_key_openssh
+}
+
+
+
+
+resource "aws_lb" "k8_masters_lb" {
+    name        = "k8-masters-lb"
+    internal    = true
+    load_balancer_type = "network"
+    subnets = module.vpc.private_subnets #[for subnet in module.vpc.private_subnets : subnet.id]
+    tags = {
+    Terraform = "true"
+    Environment = "dev"
+  }
+  
+}
+
+# target_type instance not working well when we bound this LB as a control-plane-endpoint. hence had to use IP target_type
+#https://stackoverflow.com/questions/56768956/how-to-use-kubeadm-init-configuration-parameter-controlplaneendpoint/70799078#70799078
+
+resource "aws_lb_target_group" "k8_masters_api" {
+    name = "k8-masters-api"
+    port = 6443
+    protocol = "TCP"
+    vpc_id = module.vpc.vpc_id
+    target_type = "ip"
+
+    health_check {
+      port      = 6443
+      protocol  = "TCP"
+      interval  = 30
+      healthy_threshold = 2
+      unhealthy_threshold = 2
+    }
+}
+
+resource "aws_lb_listener" "k8_masters_lb_listener" {
+    load_balancer_arn = aws_lb.k8_masters_lb.arn
+    port = 6443
+    protocol = "TCP"
+
+    default_action {
+        target_group_arn = aws_lb_target_group.k8_masters_api.id
+        type = "forward"
+    }
+}
+
+resource "aws_lb_target_group_attachment" "k8_masters_attachment" {
+    count = length(aws_instance.masters.*.id)
+    target_group_arn = aws_lb_target_group.k8_masters_api.arn
+    target_id = aws_instance.masters.*.private_ip[count.index]
+}
+
+
+
+
+resource "local_file" "ansible_inventory" {
+    content = templatefile("${path.root}/templates/inventry.tftpl",
+        {
+            masters-dns = aws_instance.masters.*.private_dns,
+            masters-ip  = aws_instance.masters.*.private_ip,
+            masters-id  = aws_instance.masters.*.id,
+            workers-dns = aws_instance.workers.*.private_dns,
+            workers-ip  = aws_instance.workers.*.private_ip,
+            workers-id  = aws_instance.workers.*.id
+        }    
+    )
+    filename = "${path.root}/inventory"
+}
+
+# wating for bastion server user data init.
+# TODO: Need to switch to signaling based solution instead of waiting. 
+resource "time_sleep" "wait_for_bastion_init" {
+  depends_on = [aws_instance.bastion]
+
+  create_duration = "120s"
+
+  triggers = {
+    "always_run" = timestamp()
+  }
+}
+
+
+resource "null_resource" "provisioner" {
+  depends_on    = [
+    local_file.ansible_inventory,
+    time_sleep.wait_for_bastion_init,
+    aws_instance.bastion
+    ]
+
+  triggers = {
+    "always_run" = timestamp()
+  }
+
+  provisioner "file" {
+    source  = "${path.root}/inventory"
+    destination = "/home/ubuntu/inventory"
+
+    connection {
+      type          = "ssh"
+      host          = aws_instance.bastion.public_ip
+      user          = var.ssh_user
+      private_key   = tls_private_key.ssh.private_key_pem
+      agent         = false
+      insecure      = true
+    }
+  }
+}
+
+resource "local_file" "ansible_vars_file" {
+    content = <<-DOC
+
+        master_lb: ${aws_lb.k8_masters_lb.dns_name}
+        DOC
+    filename = "ansible/ansible_vars_file.yml"
+}
+
+resource "null_resource" "copy_ansible_playbooks" {
+  depends_on    = [
+    null_resource.provisioner,
+    time_sleep.wait_for_bastion_init,
+    aws_instance.bastion,
+    local_file.ansible_vars_file
+    ]
+
+  triggers = {
+    "always_run" = timestamp()
+  }
+
+  provisioner "file" {
+      source = "${path.root}/ansible"
+      destination = "/home/ubuntu/ansible/"
+
+      connection {
+        type        = "ssh"
+        host        = aws_instance.bastion.public_ip
+        user        = var.ssh_user
+        private_key = tls_private_key.ssh.private_key_pem
+        insecure    = true
+        agent         = false
+      }
+    
+  }
+}
+
+resource "null_resource" "run_ansible" {
+  depends_on = [
+    null_resource.provisioner,
+    null_resource.copy_ansible_playbooks,
+    aws_instance.masters,
+    aws_instance.workers,
+    module.vpc,
+    aws_instance.bastion,
+    time_sleep.wait_for_bastion_init
+  ]
+
+  triggers = {
+    always_run = timestamp()
+  }
+
+  connection {
+    type        = "ssh"
+    host        = aws_instance.bastion.public_ip
+    user        = var.ssh_user
+    private_key = tls_private_key.ssh.private_key_pem
+    insecure    = true
+    agent         = false
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "echo 'Checking environment'",
+      "echo 'PATH: $PATH'",
+      "echo 'User: $(whoami)'",
+      "which ansible-playbook || echo 'ansible-playbook not found'",
+      "sleep 60",
+      "ansible-playbook -i /home/ubuntu/inventory /home/ubuntu/ansible/play.yml || echo 'Failed to run playbook'"
+    ] 
+  }
+}
