@@ -149,7 +149,7 @@ resource "aws_lb_target_group" "k8_workers_alb_tg" {
   port        = local.http_port
   protocol    = "HTTP"
   vpc_id      = module.vpc.vpc_id
-  target_type = "ip"
+  target_type = "instance"
 
   health_check {
     path                = "/healthz"  # Default health check path for Nginx Ingress
@@ -204,7 +204,7 @@ resource "aws_lb_target_group_attachment" "k8_workers_alb_attachment" {
   depends_on = [aws_lb_target_group.k8_workers_alb_tg]
   count            = length(aws_instance.workers.*.id)  # Use the IP addresses of your worker nodes
   target_group_arn = aws_lb_target_group.k8_workers_alb_tg.arn
-  target_id        = aws_instance.workers.*.private_ip[count.index]  # Attach the worker node private IPs
+  target_id        = aws_instance.workers.*.id[count.index]  # Attach the worker node private IPs
   port             = local.http_port
 }
 
@@ -235,15 +235,6 @@ resource "aws_security_group_rule" "workers_ingress_from_alb_https" {
   cidr_blocks       = data.aws_ip_ranges.alb_ips.cidr_blocks  # Use the ALB's DNS or its CIDR (can change depending on your ALB setup)
   security_group_id = aws_security_group.k8_workers.id  # Target the worker nodes' security group
 }
-
-
-# Output the ALB DNS name
-output "alb_dns_name" {
-  description = "The DNS name of the ALB"
-  value       = aws_lb.k8_workers_alb.dns_name
-}
-
-
 
 #============================================================================
 

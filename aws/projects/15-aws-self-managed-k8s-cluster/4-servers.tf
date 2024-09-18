@@ -33,7 +33,7 @@ resource "aws_instance" "masters" {
   instance_type = var.master_instance_type
   subnet_id = "${element(module.vpc.private_subnets, count.index)}"
   key_name          =   aws_key_pair.k8_ssh.key_name
-  security_groups = [aws_security_group.k8_nondes.id, aws_security_group.k8_masters.id]
+  security_groups = [aws_security_group.k8_nodes.id, aws_security_group.k8_masters.id]
 
   tags = {
     Name = format("Master-%02d", count.index + 1)
@@ -47,7 +47,7 @@ resource "aws_instance" "workers" {
   instance_type = var.worker_instance_type
   subnet_id = "${element(module.vpc.private_subnets, count.index)}"
   key_name          =   aws_key_pair.k8_ssh.key_name
-  security_groups = [aws_security_group.k8_nondes.id, aws_security_group.k8_workers.id]
+  security_groups = [aws_security_group.k8_nodes.id, aws_security_group.k8_workers.id]
 
   tags = {
     Name = format("Worker-%02d", count.index + 1)

@@ -25,7 +25,7 @@ resource "aws_security_group" "allow_ssh" {
     }
 }
 
-resource "aws_security_group" "k8_nondes" {
+resource "aws_security_group" "k8_nodes" {
     name = "k8_nodes"
     description = "sec group for k8 nodes"
     vpc_id = module.vpc.vpc_id
@@ -120,14 +120,6 @@ resource "aws_security_group" "k8_workers" {
         to_port     = 32767
         protocol    = "tcp"
         cidr_blocks = ["${var.vpc_cidr}"]
-    }
-
-    # Allow all outbound traffic
-    egress {
-        from_port   = 0
-        to_port     = 0
-        protocol    = "-1"
-        cidr_blocks = ["0.0.0.0/0"]
     }
 }
 
