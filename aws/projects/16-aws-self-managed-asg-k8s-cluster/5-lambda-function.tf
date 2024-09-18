@@ -1,3 +1,9 @@
+# Define the SNS topic for worker lifecycle events
+resource "aws_sns_topic" "worker_lifecycle_sns" {
+  name = "worker-lifecycle-topic"
+}
+
+# Define the Lambda function
 resource "aws_lambda_function" "ansible_trigger_lambda" {
   filename         = "lambda.zip"
   function_name    = "ansible_trigger_lambda"
@@ -15,6 +21,23 @@ resource "aws_lambda_function" "ansible_trigger_lambda" {
   }
 }
 
+# Allow SNS to invoke the Lambda function
+resource "aws_lambda_permission" "allow_sns_to_invoke_lambda" {
+  statement_id  = "AllowExecutionFromSNS"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ansible_trigger_lambda.function_name
+  principal     = "sns.amazonaws.com"
+  source_arn    = aws_sns_topic.worker_lifecycle_sns.arn
+}
+
+# SNS Topic Subscription
+resource "aws_sns_topic_subscription" "lambda_sns_subscription" {
+  topic_arn = aws_sns_topic.worker_lifecycle_sns.arn
+  protocol  = "lambda"
+  endpoint  = aws_lambda_function.ansible_trigger_lambda.arn
+}
+
+# IAM Role for Lambda
 resource "aws_iam_role" "lambda_role" {
   name = "ansible_lambda_role"
 
@@ -32,7 +55,31 @@ resource "aws_iam_role" "lambda_role" {
   })
 }
 
+# IAM Role Policy Attachment for Lambda
 resource "aws_iam_role_policy_attachment" "lambda_sns_policy" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# Define the Auto Scaling Group lifecycle hooks for worker nodes
+resource "aws_autoscaling_lifecycle_hook" "worker_scale_up" {
+  name                    = "worker-scale-up-hook"
+  lifecycle_hook_type     = "autoscaling:EC2_INSTANCE_LAUNCH"
+  autoscaling_group_name  = aws_autoscaling_group.worker_asg.name
+  role_arn                = aws_iam_role.lifecycle_hook_role.arn
+  notification_target_arn = aws_sns_topic.worker_lifecycle_sns.arn
+  heartbeat_timeout       = 3600
+
+  depends_on = [aws_autoscaling_group.worker_asg]
+}
+
+resource "aws_autoscaling_lifecycle_hook" "worker_scale_down" {
+  name                    = "worker-scale-down-hook"
+  lifecycle_hook_type     = "autoscaling:EC2_INSTANCE_TERMINATING"
+  autoscaling_group_name  = aws_autoscaling_group.worker_asg.name
+  role_arn                = aws_iam_role.lifecycle_hook_role.arn
+  notification_target_arn = aws_sns_topic.worker_lifecycle_sns.arn
+  heartbeat_timeout       = 3600
+
+  depends_on = [aws_autoscaling_group.worker_asg]
 }
