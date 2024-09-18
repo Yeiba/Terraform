@@ -276,9 +276,9 @@ resource "null_resource" "get_first_master_ip" {
   provisioner "local-exec" {
     command = <<EOT
       sleep 30
-      sed -n '/\[masters_first\]/,/\[masters_others\]/p' inventory | awk '{print $2}' | grep  ansible_host= | cut -d '=' -f 2 > master_ip
+      sed -n '/\[masters_first\]/,/\[masters_others\]/p' inventory | awk '{print $2}' | grep  ansible_host= | cut -d '=' -f 2 > ${path.module}/temp/master_ip
       chmod 600 ${path.module}/k8_ssh_key.pem
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${path.module}/master_ip ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/master_ip 
+      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${path.module}/temp/master_ip ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/master_ip 
     EOT
   }
 }
@@ -326,24 +326,24 @@ resource "null_resource" "get_pod_ip_ingress_port" {
   provisioner "local-exec" {
     command = <<EOT
       sleep 30
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/http_port ${path.module}/http_port
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/https_port ${path.module}/https_port
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/pod_ip ${path.module}/pod_ip
+      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/http_port ${path.module}/temp/http_port
+      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/https_port ${path.module}/temp/https_port
+      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/pod_ip ${path.module}/temp/pod_ip
     EOT
   }
 }
 
 data "local_file" "pod_ip" {
   depends_on = [null_resource.get_pod_ip_ingress_port]
-  filename = "${path.module}/pod_ip"
+  filename = "${path.module}/temp/pod_ip"
 }
 data "local_file" "http_port" {
   depends_on = [null_resource.get_pod_ip_ingress_port]
-  filename = "${path.module}/http_port"
+  filename = "${path.module}/temp/http_port"
 }
 data "local_file" "https_port" {
   depends_on = [null_resource.get_pod_ip_ingress_port]
-  filename = "${path.module}/https_port"
+  filename = "${path.module}/temp/https_port"
 }
 
 locals {
