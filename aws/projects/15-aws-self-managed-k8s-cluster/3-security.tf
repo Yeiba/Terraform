@@ -121,11 +121,14 @@ resource "aws_security_group" "k8_workers" {
         protocol    = "tcp"
         cidr_blocks = ["${var.vpc_cidr}"]
     }
+
 }
 
-resource "aws_security_group" "lb_sg" {
-  name        = "k8s-lb-sg"
-  description = "Allow inbound traffic for Kubernetes Ingress Load Balancer"
+
+# ALB Security Group
+resource "aws_security_group" "alb_sg" {
+  name        = "alb-sg"
+  description = "Allow HTTP and HTTPS traffic to ALB"
   vpc_id      = module.vpc.vpc_id
 
   ingress {
@@ -133,6 +136,7 @@ resource "aws_security_group" "lb_sg" {
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+    
   }
 
   ingress {
@@ -140,6 +144,7 @@ resource "aws_security_group" "lb_sg" {
     to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+
   }
 
   egress {
@@ -148,36 +153,9 @@ resource "aws_security_group" "lb_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
 
-
-
-# Rule: Allow traffic from ALB to NodePort range on worker nodes
-resource "aws_security_group_rule" "allow_alb_to_workers_nodeport" {
-  type                     = "ingress"
-  from_port                = 30000
-  to_port                  = 32767
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.k8_workers.id
-  source_security_group_id = aws_security_group.lb_sg.id
-}
-
-# Rule: Allow HTTP traffic from worker nodes to ALB
-resource "aws_security_group_rule" "allow_worker_to_alb_http" {
-  type                     = "ingress"
-  from_port                = 80
-  to_port                  = 80
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.lb_sg.id
-  source_security_group_id = aws_security_group.k8_workers.id
-}
-
-# Rule: Allow HTTPS traffic from worker nodes to ALB
-resource "aws_security_group_rule" "allow_worker_to_alb_https" {
-  type                     = "ingress"
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.lb_sg.id
-  source_security_group_id = aws_security_group.k8_workers.id
+  tags = {
+    Terraform   = "true"
+    Environment = "dev"
+  }
 }

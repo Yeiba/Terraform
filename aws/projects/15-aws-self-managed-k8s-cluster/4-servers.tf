@@ -1,7 +1,7 @@
 #Bastion
 resource "aws_instance" "bastion" {
   ami           = var.ami_id
-  instance_type = "t3.micro"
+  instance_type = "t3.medium"
   subnet_id = module.vpc.public_subnets[0]
   associate_public_ip_address = "true"
   security_groups = [aws_security_group.allow_ssh.id]
