@@ -119,7 +119,7 @@ resource "null_resource" "run_ansible" {
       "echo 'User: $(whoami)'",
       "which ansible-playbook || echo 'ansible-playbook not found'",
       "sleep 60",
-      "ansible-playbook -i /home/ubuntu/inventory /home/ubuntu/ansible/play.yml || echo 'Failed to run playbook'"
+      "ansible-playbook -i /home/ubuntu/inventory /home/ubuntu/ansible/play.yml || echo 'Failed to run playbook'",
     ] 
   }
 }

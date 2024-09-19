@@ -249,3 +249,50 @@ Yes, you can attach a **Network Load Balancer (NLB)** to the **Ingress NGINX Con
 
 ### Conclusion:
 Yes, attaching an **NLB** to the **Ingress NGINX Controller's external IP address** is a valid approach and can be implemented efficiently in AWS using Kubernetes annotations. This setup allows you to combine the low-latency routing of NLB with the advanced HTTP routing capabilities of the NGINX Ingress Controller.
+
+
+
+To get the IP address of the worker node where the Ingress NGINX Controller pod is running, you can follow these steps:
+
+### 1. Identify the Ingress NGINX Controller pod:
+
+Use the following command to get the list of NGINX Controller pods in the `ingress-nginx` namespace:
+
+```bash
+kubectl get pods -n ingress-nginx -o wide
+```
+
+This will give you a list of the Ingress NGINX Controller pods along with their associated worker nodes. Look for the column labeled `NODE` to see which worker node each pod is running on.
+
+### Example Output:
+
+```bash
+NAME                                        READY   STATUS    RESTARTS   AGE     IP             NODE         NOMINATED NODE   READINESS GATES
+ingress-nginx-controller-7fdb6c7d79-r9p2b   1/1     Running   0          10m     192.168.1.2    worker-node1 <none>           <none>
+```
+
+In this case, the Ingress NGINX Controller pod is running on the `worker-node1`.
+
+### 2. Get the IP of the worker node:
+
+Once you have the node name (e.g., `worker-node1`), use the following command to get the details of that node, including its IP address:
+
+```bash
+kubectl get nodes -o wide
+```
+
+This will display the external or internal IPs of all nodes in your cluster, including the worker node on which the NGINX Controller pod is running.
+
+### Example Output:
+
+```bash
+NAME           STATUS   ROLES    AGE   VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION   CONTAINER-RUNTIME
+worker-node1   Ready    <none>   10d   v1.23.0   10.0.1.101      <none>        Ubuntu 20.04.2 LTS   5.4.0-1044-aws   containerd://1.4.3
+worker-node2   Ready    <none>   10d   v1.23.0   10.0.1.102      <none>        Ubuntu 20.04.2 LTS   5.4.0-1044-aws   containerd://1.4.3
+```
+
+In this example, the internal IP of `worker-node1` is `10.0.1.101`.
+
+### 3. Access the Node's IP Address:
+
+Now you can see the IP of the worker node that is running the Ingress NGINX Controller pod. Use this IP to access services running on that node.

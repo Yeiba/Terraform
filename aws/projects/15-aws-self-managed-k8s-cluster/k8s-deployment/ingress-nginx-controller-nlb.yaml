@@ -17,7 +17,7 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
   name: ingress-nginx
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 ---
 apiVersion: v1
 automountServiceAccountToken: true
@@ -30,7 +30,7 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
   name: ingress-nginx-admission
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -42,7 +42,7 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
   name: ingress-nginx
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 rules:
 - apiGroups:
   - ""
@@ -132,7 +132,7 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
   name: ingress-nginx-admission
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 rules:
 - apiGroups:
   - ""
@@ -252,7 +252,7 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
   name: ingress-nginx
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -260,7 +260,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ingress-nginx
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -272,7 +272,7 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
   name: ingress-nginx-admission
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -280,7 +280,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ingress-nginx-admission
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -298,7 +298,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ingress-nginx
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -317,7 +317,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ingress-nginx-admission
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 ---
 apiVersion: v1
 data:
@@ -331,7 +331,7 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
   name: ingress-nginx-controller
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 ---
 apiVersion: v1
 kind: Service
@@ -343,7 +343,7 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
   name: ingress-nginx-controller
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 spec:
   externalTrafficPolicy: Local
   ipFamilies:
@@ -376,7 +376,7 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
   name: ingress-nginx-controller-admission
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 spec:
   ports:
   - appProtocol: https
@@ -399,7 +399,7 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
   name: ingress-nginx-controller
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 spec:
   minReadySeconds: 0
   revisionHistoryLimit: 10
@@ -522,7 +522,7 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
   name: ingress-nginx-admission-create
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 spec:
   template:
     metadata:
@@ -573,7 +573,7 @@ metadata:
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
   name: ingress-nginx-admission-patch
-  namespace: ingress-nginx
+  namespace: ingress-nginx-nlb
 spec:
   template:
     metadata:
@@ -625,9 +625,13 @@ metadata:
     app.kubernetes.io/name: ingress-nginx
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
-  name: nginx
+  name: nginx-nlb
 spec:
   controller: k8s.io/ingress-nginx
+  parameters:
+    apiGroup: ingress-nginx.kubernetes.io
+    kind: IngressClassParams
+    name: nlb-ingress-controller
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -638,14 +642,14 @@ metadata:
     app.kubernetes.io/name: ingress-nginx
     app.kubernetes.io/part-of: ingress-nginx
     app.kubernetes.io/version: 1.11.2
-  name: ingress-nginx-admission
+  name: ingress-nginx-admission-nlb
 webhooks:
 - admissionReviewVersions:
   - v1
   clientConfig:
     service:
       name: ingress-nginx-controller-admission
-      namespace: ingress-nginx
+      namespace: ingress-nginx-nlb
       path: /networking/v1/ingresses
   failurePolicy: Fail
   matchPolicy: Equivalent
