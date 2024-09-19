@@ -21,17 +21,15 @@ If the NGINX Ingress Controller is deployed, you need to modify its Service to b
    kubectl get svc -n ingress-nginx
    ```
 2. Edit the service:
-
-1. Using NodePort Instead of LoadBalancer
-If your environment does not support an external load balancer (e.g., a self-managed Kubernetes cluster), you can change the ingress-nginx-controller service to use NodePort instead of LoadBalancer. Here’s how you can do it:
+3. Using NodePort Instead of LoadBalancer
+   If your environment does not support an external load balancer (e.g., a self-managed Kubernetes cluster), you can change the ingress-nginx-controller service to use NodePort instead of LoadBalancer. Here’s how you can do it:
 
    ```bash
    kubectl edit svc ingress-nginx-controller -n ingress-nginx
    ```
-3. Modify the service YAML file to include these fields:
+4. Modify the service YAML file to include these fields:
 
 kubectl edit svc ingress-nginx-controller -n ingress-nginx
-
 
 ```yaml
 apiVersion: v1
@@ -151,19 +149,17 @@ This Ingress definition routes traffic for `example.com` to `my-service` and use
 
 This approach ensures that your NGINX Ingress Controller is exposed through an ALB with SSL termination.
 
-
-
-
 Yes, you can attach a **Network Load Balancer (NLB)** to the **Ingress NGINX Controller's external IP address** in a Kubernetes cluster. This is a common setup when you want to use the NLB for Layer 4 (TCP/UDP) routing, combined with NGINX Ingress for Layer 7 (HTTP/HTTPS) routing. Here's how you can achieve this setup and what it entails.
 
 ### How It Works:
 
 1. **Network Load Balancer (NLB)**:
+
    - The NLB operates at Layer 4, handling TCP/UDP traffic. It can forward traffic to the Kubernetes nodes running the NGINX Ingress Controller.
    - The NLB can be configured to point to the external IP addresses of the Kubernetes nodes where the NGINX Ingress Controller is running.
    - The NLB forwards the traffic to the Ingress Controller, which handles Layer 7 routing (e.g., HTTP/HTTPS).
-
 2. **Ingress NGINX Controller**:
+
    - The NGINX Ingress Controller operates at Layer 7 (application layer). It receives the traffic from the NLB and applies routing rules (e.g., path-based, host-based routing).
    - The Ingress Controller manages the traffic for the services running inside your Kubernetes cluster.
    - You typically expose the NGINX Ingress Controller using a **Service of type LoadBalancer** or **Service of type NodePort**.
@@ -177,17 +173,18 @@ Yes, you can attach a **Network Load Balancer (NLB)** to the **Ingress NGINX Con
    - **Type NodePort**: Exposes the Ingress Controller on a specific port across all the nodes, which can then be manually attached to an NLB.
 
    Example for Helm installation:
+
    ```bash
    helm install ingress-nginx ingress-nginx \
      --repo https://kubernetes.github.io/ingress-nginx \
      --namespace ingress-nginx \
      --set controller.service.type=LoadBalancer
    ```
-
 2. **Set NLB Annotations (AWS Specific)**:
    To ensure the Ingress NGINX Controller uses an NLB, you can add annotations to the Ingress Service. These annotations inform AWS to provision an NLB instead of an Application Load Balancer (ALB).
 
    Example of a `Service` manifest with NLB-specific annotations:
+
    ```yaml
    apiVersion: v1
    kind: Service
@@ -212,11 +209,11 @@ Yes, you can attach a **Network Load Balancer (NLB)** to the **Ingress NGINX Con
 
    - `service.beta.kubernetes.io/aws-load-balancer-type: "nlb"`: This tells AWS to use a Network Load Balancer instead of an Application Load Balancer.
    - `service.beta.kubernetes.io/aws-load-balancer-internal: "true"`: (Optional) If you want the NLB to be internal and not publicly accessible.
-
 3. **Manual NLB Attachment (NodePort Service)**:
    If you use a `NodePort` service for the NGINX Ingress Controller, you need to manually create the NLB and configure its target groups to point to the Kubernetes worker nodes on the NodePort range (typically 30000-32767).
 
    Steps:
+
    - Manually create an NLB in the AWS console or via Terraform/CloudFormation.
    - Create target groups pointing to the Kubernetes worker node IPs on the NodePort of the NGINX Ingress Controller.
    - Update your NLB listeners to forward traffic (TCP/UDP) to the target groups.
@@ -248,9 +245,8 @@ Yes, you can attach a **Network Load Balancer (NLB)** to the **Ingress NGINX Con
 ```
 
 ### Conclusion:
+
 Yes, attaching an **NLB** to the **Ingress NGINX Controller's external IP address** is a valid approach and can be implemented efficiently in AWS using Kubernetes annotations. This setup allows you to combine the low-latency routing of NLB with the advanced HTTP routing capabilities of the NGINX Ingress Controller.
-
-
 
 To get the IP address of the worker node where the Ingress NGINX Controller pod is running, you can follow these steps:
 
@@ -296,3 +292,66 @@ In this example, the internal IP of `worker-node1` is `10.0.1.101`.
 ### 3. Access the Node's IP Address:
 
 Now you can see the IP of the worker node that is running the Ingress NGINX Controller pod. Use this IP to access services running on that node.
+
+The output indicates that both the `ingress-nginx-admission-create` and `ingress-nginx-admission-patch` jobs have completed successfully. These are **one-time** jobs used to create and patch the necessary admission webhook resources, but they are not active pods continuously serving the admission webhook.
+
+### Next Steps:
+
+1. **Check the Status of the Admission Webhook Service**:
+   Since the `ingress-nginx-admission` jobs have completed, you should verify that the `ingress-nginx-controller-admission` service is properly set up and accessible.
+
+   Run the following command to check if the endpoints for the `admission` service are correctly set:
+
+   ```bash
+   kubectl get endpoints ingress-nginx-controller-admission -n ingress-nginx-nlb
+   ```
+
+   Ensure that there are valid endpoints pointing to the correct IP addresses or pods.
+2. **Verify Admission Webhook Configuration**:
+   Ensure that the webhook is properly configured and is pointing to the correct service. You can check the webhook configuration using:
+
+   ```bash
+   kubectl get validatingwebhookconfigurations
+   ```
+
+   You should see something like `ingress-nginx-admission`. To inspect the details, use:
+
+   ```bash
+   kubectl describe validatingwebhookconfiguration ingress-nginx-admission
+   ```
+
+   Ensure that the `service` field points to the correct namespace (`ingress-nginx-nlb`) and service name (`ingress-nginx-controller-admission`).
+3. **Check the Logs for Any Errors**:
+   Since the admission jobs have completed, review the logs for the `ingress-nginx-controller` pod (in case there are related errors) to ensure the controller is functioning correctly:
+
+   ```bash
+   kubectl logs <controller-pod-name> -n ingress-nginx-nlb
+   ```
+4. **Test the Admission Webhook**:
+   Test if the admission webhook service is reachable internally:
+
+   ```bash
+   kubectl run busybox --image=busybox --rm -it -- wget --spider https://ingress-nginx-controller-admission.ingress-nginx-nlb.svc:443
+   ```
+
+   This will help confirm whether the admission webhook is properly registered and accessible.
+5. **Investigate Load Balancer Pending Issue**:
+   The external IP for the `ingress-nginx-controller` service is still `<pending>`, which could be related to cloud provider provisioning. You may want to:
+
+   - Review the logs/events in your Kubernetes cluster using:
+     ```bash
+     kubectl describe svc ingress-nginx-controller -n ingress-nginx-nlb
+     ```
+   - Check the load balancer status in your cloud provider's dashboard (AWS, GCP, etc.) to see why the external IP is not being assigned.
+
+   Once the load balancer is provisioned and the external IP is assigned, the service will be accessible.
+
+
+
+# [Nginx Ingress Controller - Failed Calling Webhook [closed]](https://stackoverflow.com/questions/61616203/nginx-ingress-controller-failed-calling-webhook)
+
+Remove the Validating Webhook entirely:
+
+```
+kubectl delete -A ValidatingWebhookConfiguration ingress-nginx-admission
+```
