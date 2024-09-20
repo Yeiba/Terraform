@@ -121,14 +121,31 @@ resource "aws_security_group" "k8_workers" {
         protocol    = "tcp"
         cidr_blocks = ["${var.vpc_cidr}"]
     }
+        # Allow ALB to communicate with worker nodes on HTTP port (80) and HTTPS port (443)
+    ingress {
+        from_port   = 80
+        to_port     = 80
+        protocol    = "tcp"
+        security_groups = [aws_security_group.alb_sg.id]
+    }
 
+    ingress {
+        from_port   = 443
+        to_port     = 443
+        protocol    = "tcp"
+        security_groups = [aws_security_group.alb_sg.id]
+    }
+    egress {
+        from_port   = 0
+        to_port     = 0
+        protocol    = "-1"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
 }
 
-
-# ALB Security Group
 resource "aws_security_group" "alb_sg" {
-  name        = "alb-sg"
-  description = "Allow HTTP and HTTPS traffic to ALB"
+  name        = "k8s-lb-sg"
+  description = "Allow inbound traffic for Kubernetes Ingress Load Balancer"
   vpc_id      = module.vpc.vpc_id
 
   ingress {
@@ -136,7 +153,6 @@ resource "aws_security_group" "alb_sg" {
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    
   }
 
   ingress {
@@ -144,7 +160,6 @@ resource "aws_security_group" "alb_sg" {
     to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-
   }
 
   egress {
@@ -153,9 +168,14 @@ resource "aws_security_group" "alb_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
 
-  tags = {
-    Terraform   = "true"
-    Environment = "dev"
-  }
+# Rule: Allow traffic from ALB to NodePort range on worker nodes
+resource "aws_security_group_rule" "allow_alb_to_workers_nodeport" {
+  type                     = "ingress"
+  from_port                = 30000
+  to_port                  = 32767
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.k8_workers.id
+  source_security_group_id = aws_security_group.alb_sg.id
 }

@@ -346,12 +346,25 @@ The output indicates that both the `ingress-nginx-admission-create` and `ingress
 
    Once the load balancer is provisioned and the external IP is assigned, the service will be accessible.
 
-
-
 # [Nginx Ingress Controller - Failed Calling Webhook [closed]](https://stackoverflow.com/questions/61616203/nginx-ingress-controller-failed-calling-webhook)
 
 Remove the Validating Webhook entirely:
 
 ```
 kubectl delete -A ValidatingWebhookConfiguration ingress-nginx-admission
+```
+
+```
+kubectl create ns ingress-nginx-alb
+kubectl create ns ingress-nginx-nlb
+sudo helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+sudo helm template ingress-nginx ingress-nginx --repo https://kubernetes.github.io/ingress-nginx --version 4.10.0 --namespace ingress-nginx-alb > /tmp/ingress-nginx-4-10.0.yaml
+sudo kubectl apply -f /tmp/ingress-nginx-1-10.0.yaml
+
+```
+
+or
+
+```
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
 ```

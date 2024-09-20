@@ -1,14 +1,15 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: nginx-ingress-server
-  namespace: ingress-nginx-alb
+  name: sample-ingress
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
   ingressClassName: nginx-alb
   rules:
-  - http:
+  - host: k8-workers-alb-860920660.us-east-1.elb.amazonaws.com
+    http:
       paths:
       - path: /
         pathType: Prefix
