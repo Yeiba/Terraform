@@ -1,9 +1,12 @@
+
 resource "local_file" "ansible_inventory" {
     content = templatefile("${path.root}/templates/inventry.tftpl",
         {
             masters-dns = aws_instance.masters.*.private_dns,
             masters-ip  = aws_instance.masters.*.private_ip,
             masters-id  = aws_instance.masters.*.id,
+            # workers-ip  = data.aws_instances.workers.private_ips,
+            # workers-id  = data.aws_instances.workers.ids
         }    
     )
     filename = "${path.root}/inventory"
@@ -114,7 +117,7 @@ resource "null_resource" "run_ansible" {
       "echo 'User: $(whoami)'",
       "which ansible-playbook || echo 'ansible-playbook not found'",
       "sleep 60",
-      "ansible-playbook -i /home/ubuntu/inventory /home/ubuntu/ansible/play.yml || echo 'Failed to run playbook'"
+      "ansible-playbook -i /home/ubuntu/inventory /home/ubuntu/ansible/play.yml || echo 'Failed to run playbook'",
     ] 
   }
 }

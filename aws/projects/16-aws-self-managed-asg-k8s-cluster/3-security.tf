@@ -121,8 +121,20 @@ resource "aws_security_group" "k8_workers" {
         protocol    = "tcp"
         cidr_blocks = ["${var.vpc_cidr}"]
     }
+        # Allow ALB to communicate with worker nodes on HTTP port (80) and HTTPS port (443)
+    ingress {
+        from_port   = 80
+        to_port     = 80
+        protocol    = "tcp"
+        security_groups = [aws_security_group.alb_sg.id]
+    }
 
-    # Allow all outbound traffic
+    ingress {
+        from_port   = 443
+        to_port     = 443
+        protocol    = "tcp"
+        security_groups = [aws_security_group.alb_sg.id]
+    }
     egress {
         from_port   = 0
         to_port     = 0
@@ -131,7 +143,7 @@ resource "aws_security_group" "k8_workers" {
     }
 }
 
-resource "aws_security_group" "lb_sg" {
+resource "aws_security_group" "alb_sg" {
   name        = "k8s-lb-sg"
   description = "Allow inbound traffic for Kubernetes Ingress Load Balancer"
   vpc_id      = module.vpc.vpc_id
@@ -158,8 +170,6 @@ resource "aws_security_group" "lb_sg" {
   }
 }
 
-
-
 # Rule: Allow traffic from ALB to NodePort range on worker nodes
 resource "aws_security_group_rule" "allow_alb_to_workers_nodeport" {
   type                     = "ingress"
@@ -167,25 +177,5 @@ resource "aws_security_group_rule" "allow_alb_to_workers_nodeport" {
   to_port                  = 32767
   protocol                 = "tcp"
   security_group_id        = aws_security_group.k8_workers.id
-  source_security_group_id = aws_security_group.lb_sg.id
-}
-
-# Rule: Allow HTTP traffic from worker nodes to ALB
-resource "aws_security_group_rule" "allow_worker_to_alb_http" {
-  type                     = "ingress"
-  from_port                = 80
-  to_port                  = 80
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.lb_sg.id
-  source_security_group_id = aws_security_group.k8_workers.id
-}
-
-# Rule: Allow HTTPS traffic from worker nodes to ALB
-resource "aws_security_group_rule" "allow_worker_to_alb_https" {
-  type                     = "ingress"
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.lb_sg.id
-  source_security_group_id = aws_security_group.k8_workers.id
+  source_security_group_id = aws_security_group.alb_sg.id
 }

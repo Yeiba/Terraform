@@ -1,3 +1,14 @@
+# # Data source to fetch information about instances in the ASG
+data "aws_instances" "workers" {
+  instance_tags = {
+    "aws:autoscaling:groupName" = aws_autoscaling_group.worker_asg.name
+  }
+  
+  instance_state_names = ["running"]
+  
+  depends_on = [aws_autoscaling_group.worker_asg]
+}
+
 # Network Load Balancer
 resource "aws_lb" "k8_workers_nlb" {
   depends_on = [null_resource.get_pod_ip_ingress_port]
@@ -58,42 +69,26 @@ resource "aws_lb_listener" "nlb_listener_https" {
   }
 }
 
+# resource "null_resource" "k8_workers_nlb_attachment" {
+#   depends_on = [
+#     aws_autoscaling_group.worker_asg,
+#     aws_lb_target_group.k8_workers_nlb_tg  # Ensure this is the correct target group
+#   ]
+
+#   provisioner "local-exec" {
+#     command = <<EOT
+#       aws autoscaling attach-load-balancer-target-groups --auto-scaling-group-name ${aws_autoscaling_group.worker_asg.name} --target-group-arn ${aws_lb_target_group.k8_workers_nlb_tg.arn}
+#     EOT
+#   }
+# }
+
 
 resource "aws_lb_target_group_attachment" "k8_workers_nlb_attachment" {
+  # for_each = toset(data.aws_instances.workers.private_ips)
   depends_on = [aws_lb_target_group.k8_workers_nlb_tg]
   target_group_arn = aws_lb_target_group.k8_workers_nlb_tg.arn
   target_id           = local.nlb_pod_ip
   port                = local.nlb_http_port
-}
-
-# # # Attach worker nodes to NLB target group
-# resource "aws_lb_target_group_attachment" "k8_workers_nlb_attachment" {
-#   depends_on = [aws_lb_target_group.k8_workers_nlb_tg]
-#   count            = length(aws_instance.workers.*.id)
-#   target_group_arn = aws_lb_target_group.k8_workers_nlb_tg.arn
-#   target_id        = aws_instance.workers.*.id[count.index]
-#   port             = local.http_port
-# }
-
-# Update the existing k8_workers security group to allow traffic from NLB
-resource "aws_security_group_rule" "workers_ingress_from_nlb_http" {
-  depends_on = [aws_lb_target_group.k8_workers_nlb_tg]
-  type              = "ingress"
-  from_port         = local.nlb_http_port
-  to_port           = local.nlb_http_port
-  protocol          = "tcp"
-  cidr_blocks       = module.vpc.private_subnets_cidr_blocks
-  security_group_id = aws_security_group.k8_workers.id
-}
-
-resource "aws_security_group_rule" "workers_ingress_from_nlb_https" {
-  depends_on = [aws_lb_target_group.k8_workers_nlb_tg]
-  type              = "ingress"
-  from_port         = local.nlb_https_port
-  to_port           = local.nlb_https_port
-  protocol          = "tcp"
-  cidr_blocks       = module.vpc.private_subnets_cidr_blocks
-  security_group_id = aws_security_group.k8_workers.id
 }
 
 
@@ -151,23 +146,32 @@ resource "aws_lb_listener" "http" {
     target_group_arn = aws_lb_target_group.k8_workers_alb_tg.arn
   }
 
-#   default_action {
-#     type = "redirect"
-#     redirect {
-#       port        = "443"
-#       protocol    = "HTTPS"
-#       status_code = "HTTP_301"
-#     }
-#   }
+  # default_action {
+  #   type = "redirect"
+  #   redirect {
+  #     port        = "443"
+  #     protocol    = "HTTPS"
+  #     status_code = "HTTP_301"
+  #   }
+  # }
 }
 
-# ALB HTTPS Listener
+# resource "aws_acm_certificate" "acm_cert" {
+#   domain_name       = "yourdomain.com"  # Replace with your custom domain
+#   validation_method = "DNS"
+
+#   tags = {
+#     Name = "ALB ACM Certificate"
+#   }
+# }
+
+# # ALB HTTPS Listener
 # resource "aws_lb_listener" "https" {
 #   load_balancer_arn = aws_lb.k8_workers_alb.arn
 #   port              = "443"
 #   protocol          = "HTTPS"
 #   ssl_policy        = "ELBSecurityPolicy-2016-08"
-#   certificate_arn   = var.acm_certificate_arn  # You need to provide this variable
+#   certificate_arn   = aws_acm_certificate.acm_cert.arn # You need to provide this variable
 
 #   default_action {
 #     type             = "forward"
@@ -178,194 +182,12 @@ resource "aws_lb_listener" "http" {
 
 
 resource "aws_lb_target_group_attachment" "k8_workers_alb_attachment" {
+  # for_each = toset(data.aws_instances.workers.private_ips)
   depends_on = [aws_lb_target_group.k8_workers_alb_tg]
   target_group_arn = aws_lb_target_group.k8_workers_alb_tg.arn
   target_id           = local.alb_pod_ip
   port                = local.alb_http_port
 }
 
-# resource "aws_lb_target_group_attachment" "k8_workers_alb_attachment" {
-#   depends_on = [aws_lb_target_group.k8_workers_alb_tg]
-#   count            = length(aws_instance.workers.*.id)  # Use the IP addresses of your worker nodes
-#   target_group_arn = aws_lb_target_group.k8_workers_alb_tg.arn
-#   target_id        = aws_instance.workers.*.id[count.index]  # Attach the worker node private IPs
-#   port             = local.http_port
-# }
-
-# Fetch AWS IP ranges for the ALB in your region
-data "aws_ip_ranges" "alb_ips" {
-  services = ["ALB"]
-  regions  = ["us-east-1"]  # Replace with your region if different
-}
-
-# Allow HTTP traffic from ALB to worker nodes
-resource "aws_security_group_rule" "workers_ingress_from_alb_http" {
-  depends_on = [aws_lb_target_group.k8_workers_alb_tg]
-  type              = "ingress"
-  from_port         = local.alb_http_port  # Ensure this is a valid port number for HTTP
-  to_port           = local.alb_http_port
-  protocol          = "tcp"
-  cidr_blocks       = data.aws_ip_ranges.alb_ips.cidr_blocks # Use the ALB's DNS or its CIDR (can change depending on your ALB setup)
-  security_group_id = aws_security_group.k8_workers.id  # Target the worker nodes' security group
-}
-
-# Allow HTTPS traffic from ALB to worker nodes
-resource "aws_security_group_rule" "workers_ingress_from_alb_https" {
-  depends_on = [aws_lb_target_group.k8_workers_alb_tg]
-  type              = "ingress"
-  from_port         = local.alb_https_port # Ensure this is a valid port number for HTTPS
-  to_port           = local.alb_https_port
-  protocol          = "tcp"
-  cidr_blocks       = data.aws_ip_ranges.alb_ips.cidr_blocks  # Use the ALB's DNS or its CIDR (can change depending on your ALB setup)
-  security_group_id = aws_security_group.k8_workers.id  # Target the worker nodes' security group
-}
-
 #============================================================================
 
-resource "null_resource" "configure_alb" {
-  depends_on = [
-    null_resource.run_ansible
-  ]
-
-  provisioner "local-exec" {
-    command = "echo 'NGINX Ingress Controller installation and NLB setup complete'"
-  }
-}
-
-resource "null_resource" "get_first_master_ip" {
-  depends_on = [null_resource.configure_alb]
-
-  triggers = {
-    always_run = timestamp()
-  }
-
-  connection {
-    type        = "ssh"
-    host        = aws_instance.bastion.public_ip
-    user        = var.ssh_user
-    private_key = tls_private_key.ssh.private_key_pem
-    insecure    = true
-    agent       = false
-  }
-  
-  provisioner "local-exec" {
-    command = <<EOT
-      sleep 20
-      sed -n '/\[masters_first\]/,/\[masters_others\]/p' inventory | awk '{print $2}' | grep  ansible_host= | cut -d '=' -f 2 > ${path.module}/temp/master_ip
-      chmod 600 ${path.module}/k8_ssh_key.pem
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${path.module}/temp/master_ip ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/master_ip 
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${path.module}/k8s-deployment/ingress-nginx-controller-nlb.yaml ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/ingress-nginx-controller-nlb.yaml 
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${path.module}/k8s-deployment/ingress-nginx-controller-alb.yaml ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/ingress-nginx-controller-alb.yaml 
-    EOT
-  }
-}
-
-resource "null_resource" "get_pod_ip_ingress_port" {
-  depends_on = [null_resource.get_first_master_ip]
-
-  triggers = {
-    always_run = timestamp()
-  }
-
-  connection {
-    type        = "ssh"
-    host        = aws_instance.bastion.public_ip
-    user        = var.ssh_user
-    private_key = tls_private_key.ssh.private_key_pem
-    insecure    = true
-    agent       = false
-  }
-
-
-  provisioner "remote-exec" {
-    inline = [
-      "export ip=$(cat /tmp/master_ip)",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl create ns kube-system",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sudo helm repo add flannel https://flannel-io.github.io/flannel/",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sudo helm install flannel flannel/flannel --namespace kube-system --set podCidr=192.168.0.0/16",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sleep 20",
-      # "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sudo helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx",
-      # "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sudo helm template ingress-nginx ingress-nginx --repo https://kubernetes.github.io/ingress-nginx --version 4.10.0 --namespace ingress-nginx --set controller.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchExpressions[0].key='app.kubernetes.io/name' --set controller.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchExpressions[0].operator='In' --set controller.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchExpressions[0].values[0]='ingress-nginx' --set controller.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey='kubernetes.io/hostname' > /tmp/ingress-nginx-1-10.0.yaml",
-      # "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sudo kubectl apply -f /tmp/ingress-nginx-1-10.0.yaml",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl create ns ingress-nginx-nlb ",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl create ns ingress-nginx-alb ",
-      "scp -o StrictHostKeyChecking=no /tmp/ingress-nginx-controller-nlb.yaml ${var.ssh_user}@$ip:/tmp/ingress-nginx-controller-nlb.yaml",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sudo kubectl apply -f /tmp/ingress-nginx-controller-nlb.yaml",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sleep 20",
-      "scp -o StrictHostKeyChecking=no /tmp/ingress-nginx-controller-alb.yaml ${var.ssh_user}@$ip:/tmp/ingress-nginx-controller-alb.yaml",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sudo kubectl apply -f /tmp/ingress-nginx-controller-alb.yaml",
-      # "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl create ns ingress-nginx ",
-      # "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sleep 120",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl get svc -n ingress-nginx-nlb | head -n 2 | grep ingress-nginx-controller | awk '{print $5}' | cut -d ',' -f 1 | cut -d '/' -f 1 | cut -d ':' -f 2 > /tmp/nlb_http_port",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl get svc -n ingress-nginx-nlb | head -n 2 | grep ingress-nginx-controller | awk '{print $5}' | cut -d ',' -f 2 | cut -d '/' -f 1 | cut -d ':' -f 2 > /tmp/nlb_https_port",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl get svc -n ingress-nginx-alb | head -n 2 | grep ingress-nginx-controller | awk '{print $5}' | cut -d ',' -f 1 | cut -d '/' -f 1 | cut -d ':' -f 2 > /tmp/alb_http_port",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl get svc -n ingress-nginx-alb | head -n 2 | grep ingress-nginx-controller | awk '{print $5}' | cut -d ',' -f 2 | cut -d '/' -f 1 | cut -d ':' -f 2 > /tmp/alb_https_port",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sleep 120",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl get pods -n ingress-nginx-nlb -o wide | head -n 4 | grep ingress-nginx-controller | awk '{print $7}' > /tmp/nlb_pod_ip",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl get pods -n ingress-nginx-alb -o wide | head -n 4 | grep ingress-nginx-controller | awk '{print $7}' > /tmp/alb_pod_ip",
-      "cat /tmp/nlb_pod_ip",
-      "cat /tmp/alb_pod_ip",
-      "export nlb_pod_ip=$(cat /tmp/nlb_pod_ip)",
-      "export alb_pod_ip=$(cat /tmp/alb_pod_ip)",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl get nodes -o wide | grep -w $nlb_pod_ip | awk '{print $6}' > /tmp/nlb_pod_ip",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl get nodes -o wide | grep -w $alb_pod_ip | awk '{print $6}' > /tmp/alb_pod_ip",
-      "cat /tmp/nlb_http_port",
-      "cat /tmp/nlb_https_port",
-      "cat /tmp/nlb_pod_ip",
-      "cat /tmp/alb_http_port",
-      "cat /tmp/alb_https_port",
-      "cat /tmp/alb_pod_ip",
-    ] 
-  }
-
-  provisioner "local-exec" {
-    command = <<EOT
-      sleep 20
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/nlb_http_port ${path.module}/temp/nlb_http_port
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/nlb_https_port ${path.module}/temp/nlb_https_port
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/nlb_pod_ip ${path.module}/temp/nlb_pod_ip
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/alb_http_port ${path.module}/temp/alb_http_port
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/alb_https_port ${path.module}/temp/alb_https_port
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/alb_pod_ip ${path.module}/temp/alb_pod_ip
-    EOT
-  }
-}
-
-data "local_file" "nlb_pod_ip" {
-  depends_on = [null_resource.get_pod_ip_ingress_port]
-  filename = "${path.module}/temp/nlb_pod_ip"
-}
-data "local_file" "nlb_http_port" {
-  depends_on = [null_resource.get_pod_ip_ingress_port]
-  filename = "${path.module}/temp/nlb_http_port"
-}
-data "local_file" "nlb_https_port" {
-  depends_on = [null_resource.get_pod_ip_ingress_port]
-  filename = "${path.module}/temp/nlb_https_port"
-}
-
-#================================================================
-
-data "local_file" "alb_pod_ip" {
-  depends_on = [null_resource.get_pod_ip_ingress_port]
-  filename = "${path.module}/temp/alb_pod_ip"
-}
-data "local_file" "alb_http_port" {
-  depends_on = [null_resource.get_pod_ip_ingress_port]
-  filename = "${path.module}/temp/alb_http_port"
-}
-data "local_file" "alb_https_port" {
-  depends_on = [null_resource.get_pod_ip_ingress_port]
-  filename = "${path.module}/temp/alb_https_port"
-}
-
-locals {
-  nlb_http_port  = tonumber(trimspace(data.local_file.nlb_http_port.content))
-  nlb_https_port = tonumber(trimspace(data.local_file.nlb_https_port.content))
-  nlb_pod_ip = trimspace(data.local_file.nlb_pod_ip.content)
-
-  alb_http_port  = tonumber(trimspace(data.local_file.alb_http_port.content))
-  alb_https_port = tonumber(trimspace(data.local_file.alb_https_port.content))
-  alb_pod_ip = trimspace(data.local_file.alb_pod_ip.content)
-}

@@ -19,7 +19,8 @@ ansible_ssh_common_args='-o UserKnownHostsFile=/dev/null -o StrictHostKeyCheckin
 masters_first
 masters_others
 
+
 [workers]
-%{ for index, dns in workers-dns ~}
-worker-${index} ansible_host=${workers-ip[index]} # ${workers-id[index]}
+%{ for index, ip in workers-ip ~}
+worker-${index} ansible_host=${ip} # ${workers-id[index]}
 %{ endfor ~}
