@@ -54,6 +54,11 @@ variable "worker_instance_type" {
     default = "t3.medium" # t3.small
 }
 
+variable "basion_instance_type" {
+    type = string
+    default = "t3.medium" # t3.small
+}
+
 variable "min_worker_nodes" {
     type = number
     default = 3

@@ -19,7 +19,7 @@ resource "null_resource" "get_pod_ip_ingress_port" {
       "export ip=$(cat /tmp/master_ip)",
       "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sudo helm repo add flannel https://flannel-io.github.io/flannel/",
       "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sudo helm install flannel flannel/flannel --namespace kube-system --set podCidr=192.168.0.0/16",
-      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sleep 120",
+      "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip sleep 340",
       # "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl create ns ingress-nginx-nlb",
       # "ssh -o StrictHostKeyChecking=no ${var.ssh_user}@$ip kubectl create ns ingress-nginx-alb",
       "scp -o StrictHostKeyChecking=no /tmp/ingress-nginx-nlb-4-10.0.yaml ${var.ssh_user}@$ip:/tmp/ingress-nginx-nlb-4-10.0.yaml",

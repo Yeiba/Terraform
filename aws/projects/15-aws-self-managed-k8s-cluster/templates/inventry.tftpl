@@ -4,14 +4,14 @@ ansible_ssh_common_args='-o UserKnownHostsFile=/dev/null -o StrictHostKeyCheckin
 [masters_first]
 %{ for index, dns in masters-dns ~}
     %{ if index == 0 ~}
-        master-${index} ansible_host=${masters-ip[index]} # ${masters-id[index]}
+        ${dns} ansible_host=${masters-ip[index]} # ${masters-id[index]}
     %{ endif ~}
 %{ endfor ~}
 
 [masters_others]
 %{ for index, dns in masters-dns ~}
     %{ if index != 0 ~}
-        master-${index} ansible_host=${masters-ip[index]} # ${masters-id[index]}
+        ${dns} ansible_host=${masters-ip[index]} # ${masters-id[index]}
     %{ endif ~}
 %{ endfor ~}
 
@@ -21,5 +21,5 @@ masters_others
 
 [workers]
 %{ for index, dns in workers-dns ~}
-worker-${index} ansible_host=${workers-ip[index]} # ${workers-id[index]}
+${dns} ansible_host=${workers-ip[index]} # ${workers-id[index]}
 %{ endfor ~}

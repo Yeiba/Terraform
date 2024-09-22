@@ -4,9 +4,7 @@ resource "local_file" "ansible_inventory" {
         {
             masters-dns = aws_instance.masters.*.private_dns,
             masters-ip  = aws_instance.masters.*.private_ip,
-            masters-id  = aws_instance.masters.*.id,
-            # workers-ip  = data.aws_instances.workers.private_ips,
-            # workers-id  = data.aws_instances.workers.ids
+            masters-id  = aws_instance.masters.*.id
         }    
     )
     filename = "${path.root}/inventory"

@@ -57,85 +57,144 @@ resource "aws_launch_template" "worker_launch_template" {
     }
   }
 
-  user_data = base64encode(<<-EOF
-    #!/bin/bash
-    set -e
 
-    echo "Starting worker node initialization"
+  user_data = <<-EOF
+                #!/bin/bash
+                # set -e
 
-    # Update package list
-    sudo apt-get update
+                echo -e "\e[1;32mStarting worker node initialization\e[0m"
 
-    # Install Docker
-    sudo apt-get install -y docker.io
+                # Update package list
+                echo -e "\e[1;32mUpdate package list\e[0m"
+                sudo apt-get update -y
 
-    # Install APT Transport HTTPS
-    sudo apt-get install -y apt-transport-https
+                # Install Docker
+                echo -e "\e[1;32mInstall Docker\e[0m"
+                sudo apt-get install -y docker.io
 
-    # Install curl
-    sudo apt-get install -y curl
+                # Install APT Transport HTTPS
+                echo -e "\e[1;32mInstall APT Transport HTTPS\e[0m"
+                sudo apt-get install -y apt-transport-https
 
-    # Create the keyrings directory if it doesn't exist
-    sudo mkdir -p /etc/apt/keyrings
+                # Install curl
+                echo -e "\e[1;32mInstall curl\e[0m"
+                sudo apt-get install -y curl
 
-    # Create the keyrings directory if it doesn't exist
-    sudo chmod 755 /etc/apt/keyrings
+                # Create the keyrings directory if it doesn't exist
+                echo -e "\e[1;32mCreate the keyrings directory if it doesn't exist\e[0m"
+                sudo mkdir -p /etc/apt/keyrings
 
-    # Get Kubernetes package key
-    sudo sh -c 'curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg'
+                # chmod /etc/apt/keyrings
+                echo -e "\e[1;32mchmod /etc/apt/keyrings\e[0m"
+                sudo chmod 755 /etc/apt/keyrings
 
-    # Install Kubernetes repository
-    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+                # Get Kubernetes package key
+                echo -e "\e[1;32mGet Kubernetes package key\e[0m"
+                sudo sh -c 'curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg'
 
-    # Update package list again
-    sudo apt-get update
+                # Install Kubernetes repository
+                echo -e "\e[1;32mInstall Kubernetes repository\e[0m"
+                echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
 
-    # Install Kubelet and Kubeadm
-    sudo apt-get install -y kubelet kubeadm
+                # Update package list again
+                echo -e "\e[1;32mUpdate package list again\e[0m"
+                sudo apt-get update -y
+                sudo apt-get install -y git wget curl docker.io make
 
-    # Install cri-dockerd
-    ARCH=$(dpkg --print-architecture)
-    LATEST_CRI_DOCKERD=$(sudo curl -s https://api.github.com/repos/Mirantis/cri-dockerd/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
-    LATEST_CRI_DOCKERD_NO_V=$(sudo curl -s https://api.github.com/repos/Mirantis/cri-dockerd/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")' | cut -d 'v' -f 2)
+                # Install Kubelet and Kubeadm
+                echo -e "\e[1;32mInstall Kubelet and Kubeadm\e[0m"
+                sudo apt-get install -y kubelet kubeadm
 
-    # Download cri-dockerd
-    sudo curl -LO "https://github.com/Mirantis/cri-dockerd/releases/download/$LATEST_CRI_DOCKERD/cri-dockerd-$LATEST_CRI_DOCKERD_NO_V.$ARCH.tgz"
+                # Start and enable Docker
+                echo -e "\e[1;32mStart and enable Docker\e[0m"
+                sudo systemctl enable --now docker
 
-    # Extract and move to /usr/local/bin
-    sudo tar -xzf "cri-dockerd-$LATEST_CRI_DOCKERD_NO_V.$ARCH.tgz" -C /usr/local/bin/
+                # Install Go
+                echo -e "\e[1;32mInstall Go\e[0m"
+                GO_VERSION="1.22.0"
+                wget "https://golang.org/dl/go$GO_VERSION.linux-amd64.tar.gz"
+                sudo rm -rf /usr/local/go
+                sudo tar -C /usr/local -xzf "go$GO_VERSION.linux-amd64.tar.gz"
+                export PATH=$PATH:/usr/local/go/bin
+                go version
 
-    sudo mkdir -p /etc/systemd/system/
-    sudo chmod 755 /etc/systemd/system/
+                # Clone and build cri-dockerd
+                echo -e "\e[1;32mClone and build cri-dockerd\e[0m"
+                git clone https://github.com/Mirantis/cri-dockerd.git
+                cd cri-dockerd
 
-    # Get systemd unit files for cri-dockerd
-    sudo curl -o /etc/systemd/system/cri-docker.service https://raw.githubusercontent.com/Mirantis/cri-dockerd/master/packaging/systemd/cri-docker.service
-    sudo curl -o /etc/systemd/system/cri-docker.socket https://raw.githubusercontent.com/Mirantis/cri-dockerd/master/packaging/systemd/cri-docker.socket
+                # Check Go version requirement in go.mod
+                echo -e "\e[1;32mCheck Go version requirement in go.mod\e[0m"
+                GO_MOD_VERSION=$(grep -oP 'go \K\d+\.\d+' go.mod)
+                echo "Go version required by cri-dockerd: $GO_MOD_VERSION"
+                echo "Installed Go version: $GO_VERSION"
 
-    # Configure systemd for cri-dockerd
-    sudo sed -i 's|/usr/bin/cri-dockerd|/usr/local/bin/cri-dockerd|' /etc/systemd/system/cri-docker.service
+                # Build cri-dockerd
+                echo -e "\e[1;32mBuild cri-dockerd\e[0m"
+                mkdir -p  bin
+                go build -o bin/cri-dockerd
 
-    # Reload systemd daemon
-    sudo systemctl daemon-reload
+                # Install cri-dockerd
+                echo -e "\e[1;32mInstall cri-dockerd\e[0m"
+                sudo mkdir -p /usr/local/bin
+                sudo install -o root -g root -m 0755 bin/cri-dockerd /usr/local/bin/cri-dockerd
 
-    # Start and Enable the cri-dockerd service - cri-docker.service
-    sudo systemctl enable --now cri-docker.service
+                # Verify the installation
+                echo -e "\e[1;32mVerify the installation\e[0m"
+                ls -l /usr/local/bin/cri-dockerd
+                sudo /usr/local/bin/cri-dockerd --version
 
-    # Start and enable the cri-dockerd service and socket
-    sudo systemctl enable --now cri-docker.service cri-docker.socket
+                # Install systemd units
+                echo -e "\e[1;32mInstall systemd units\e[0m"
+                sudo cp -a packaging/systemd/* /etc/systemd/system
+                sudo sed -i -e 's,/usr/bin/cri-dockerd,/usr/local/bin/cri-dockerd,' /etc/systemd/system/cri-docker.service
+                sudo cp /etc/systemd/system/cri-docker.socket /etc/systemd/system/cri-docker.socket.service
 
-    sudo cat "${local.k8_ssh_key}" > /tmp/k8_ssh_key.pem
+                echo -e "\e[1;32mupdate the ExecStart\e[0m"
+                sudo sed -i 's|^ExecStart=.*|ExecStart=/usr/bin/dockerd -H fd:// -H tcp://0.0.0.0:2736|' /etc/systemd/system/cri-docker.service
 
-    sudo chmod 600 /tmp/k8_ssh_key.pem
+                echo -e "\e[1;32msudo systemctl daemon-reload\e[0m"
+                sudo systemctl daemon-reload
 
-    # Get the worker node join command from the first master node
-    sudo ssh -o StrictHostKeyChecking=no -i /tmp/k8_ssh_key.pem ubuntu@${local.master_ip} "sudo kubeadm token create --print-join-command"  > /tmp/join_commend
+                echo -e "\e[1;32msudo systemctl restart docker.service\e[0m"
+                sudo systemctl restart docker.service
 
-    JOIN_COMMAND=$(sudo cat /tmp/join_commend )
+                echo -e "\e[1;32msudo systemctl enable --now cri-docker.socket\e[0m"
+                sudo systemctl enable --now cri-docker.socket
 
-    # Execute the join command
-    sudo $JOIN_COMMAND
-  EOF
-  )
+                # sudo systemctl status docker.service
+                # sudo systemctl status cri-docker.socket
+
+                echo -e "\e[1;32mcd ~\e[0m"
+                cd ~
+
+                # Write the SSH key and master IP passed from Terraform
+                echo -e "\e[1;32mWrite the SSH key and master IP passed from Terraform\e[0m"
+                echo "${local.k8_ssh_key}" | sudo tee /tmp/k8_ssh_key.pem
+                echo "${local.master_ip}" | sudo tee /tmp/master_ip
+
+                echo "${local.k8_ssh_key}" > /tmp/k8_ssh_key_2.pem
+                echo "${local.master_ip}" > /tmp/master_ip_2
+
+                sudo chmod 600 /tmp/k8_ssh_key.pem
+                sudo chmod 600 /tmp/k8_ssh_key_2.pem
+                
+                MASTER_IP_2=$(sudo cat /tmp/master_ip_2)
+
+                # Get the worker node join command from the first master node
+                sudo ssh -o StrictHostKeyChecking=no -i /tmp/k8_ssh_key.pem ubuntu@$MASTER_IP sudo kubeadm token create --print-join-command  > /tmp/join_commend
+
+                sudo ssh -o StrictHostKeyChecking=no -i /tmp/k8_ssh_key_2.pem ubuntu@$MASTER_IP_2 sudo kubeadm token create --print-join-command  > /tmp/join_commend_2
+
+                JOIN_COMMAND=$(sudo cat /tmp/join_commend )
+
+                JOIN_COMMAND_2=$(sudo cat /tmp/join_commend_2 )
+
+                # Execute the join command
+                sudo $JOIN_COMMAND
+
+                sudo $JOIN_COMMAND_2
+                EOF
 
   lifecycle {
     create_before_destroy = true
@@ -149,7 +208,6 @@ resource "aws_launch_template" "worker_launch_template" {
     }
   }
 }
-
 
 resource "aws_autoscaling_group" "worker_asg" {
   launch_template {
