@@ -16,11 +16,7 @@ Ansible for all Server & Cluster configurations.
 
 ## Architecture Diagram
 
-![alt text](https://raw.githubusercontent.com/lkravi/kube8aws/multi-master/architecture.png)
-
-### Prerequisites
-
-* You need to have your [AWS CLI configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html).
+![1727125449678](images/README/1727125449678.png)
 
 ## Usage
 
