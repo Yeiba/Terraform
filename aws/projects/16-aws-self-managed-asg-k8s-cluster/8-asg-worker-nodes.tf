@@ -203,10 +203,13 @@ resource "aws_launch_template" "worker_launch_template" {
 
     echo "${local.join_command}" | sudo tee /tmp/join_command
 
-    export JOIN_COMMAND=$(cat /tmp/join_command) | sudo $JOIN_COMMAND
+    sleep 10
 
-    # Execute the join command
-    sudo $JOIN_COMMAND
+    sudo $(cat /tmp/join_command)
+
+    sleep 10
+    
+    sudo $(cat /tmp/join_command)
 
     EOF
   )
