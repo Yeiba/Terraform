@@ -1,8 +1,8 @@
-# Kubernetes cluster with Kubeadm on AWS using Terraform & Ansible.
+# Kubernetes self managed auto scalling group cluster with Kubeadm on AWS using Terraform & Ansible.
 
 ### Tech Stack
 
-Terraform, Ansible, Docker, cri-dockerd, kubeadm, Kubernetes, Ubuntu, AWS {VPC, EC2, NLB}
+Terraform, Ansible, Docker, cri-dockerd, kubeadm, Kubernetes, Ubuntu, AWS {VPC, EC2, NLB, ALB, ingress nginx controller}
 
 This repo contain the all required automation code for setting up Kubernetes cluster using kubeadm in AWS cloud environment. I have tested all the scripts successfully on Ubuntu 18.04.
 
@@ -25,16 +25,3 @@ Ansible for all Server & Cluster configurations.
 ## Usage
 
 Clone this repo first then check the vars.tf for the AWS & Kubernetes cluster configurations. I already added default values for each variable. You can override any variable via command line or as a variable file.
-
-> If you are changing AWS region, please make sure to change the ami_id variable as well. You can click [here](https://cloud-images.ubuntu.com/locator/ec2/) to locate ubuntu ami for any AWS region.
-
-Once you review the configuration you just need to apply the terraform code.
-
-cd lambda
-zip -r ../lambda.zip .
-terraform init
-terraform plan 
-terraform apply
-Terraform apply will make sure it will provision all required infrastructure and setup kubernetes cluster on top of it.
-
-> To ssh to the Bastion host you can find the "k8_ssh_key.pem" private key in your project folder. This will be dynamically created during infrastructure provisioning and added to the bastion host as well. Same key will be used to configure the ansible host and clients.
