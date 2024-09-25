@@ -8,7 +8,7 @@ metadata:
 spec:
   ingressClassName: nginx-alb
   rules:
-  - host: k8-workers-alb-860920660.us-east-1.elb.amazonaws.com
+  - host: k8-workers-alb-640240075.us-east-1.elb.amazonaws.com
     http:
       paths:
       - path: /

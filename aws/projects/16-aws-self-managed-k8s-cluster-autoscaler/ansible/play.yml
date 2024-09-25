@@ -280,4 +280,14 @@
       apt:
         name: helm
         state: present
+
+    - name: Download Helmfile
+      get_url:
+        url: "https://github.com/roboll/helmfile/releases/download/v0.144.0/helmfile_linux_amd64"
+        dest: /usr/local/bin/helmfile
+        mode: '0755'
+
+    - name: Verify Helmfile installation
+      command: helmfile --version
+      register: helmfile_version
 #####

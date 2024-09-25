@@ -280,4 +280,15 @@
       apt:
         name: helm
         state: present
+        
+    - name: Add Helmfile GPG key
+      apt_key:
+        url: https://github.com/helmfile/helmfile/releases/latest/download/helmfile-linux-amd64.asc
+        state: present
+
+    - name: Install Helmfile
+      get_url:
+        url: https://github.com/helmfile/helmfile/releases/latest/download/helmfile-linux-amd64
+        dest: /usr/local/bin/helmfile
+        mode: '0755'
 #####

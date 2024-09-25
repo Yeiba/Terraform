@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nfs-server
+  namespace: nfs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nfs-server
+  serviceName: "nfs-server"
+  template:
+    metadata:
+      labels:
+        app: nfs-server
+    spec:
+      containers:
+      - name: nfs-server
+        image: itsthenetwork/nfs-server-alpine:latest
+        ports:
+        - name: nfs
+          containerPort: 2049
+        - name: mountd
+          containerPort: 20048
+        - name: rpcbind
+          containerPort: 111
+        volumeMounts:
+        - name: nfs-volume
+          mountPath: /nfsshare
+  volumeClaimTemplates:
+  - metadata:
+      name: nfs-volume
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nfs-service
+  namespace: nfs
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"  # Using NLB
+spec:
+  selector:
+    app: nfs-server
+  ports:
+    - protocol: TCP
+      port: 2049  # NFS Port
+      targetPort: 2049
+  type: LoadBalancer

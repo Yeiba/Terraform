@@ -1,1 +1,1 @@
-kubeadm join k8-masters-lb-xxxxxxxxxxxx.elb.us-east-1.amazonaws.com:6443 --token sm3qwn.xxxxxxxxxxxxx --discovery-token-ca-cert-hash sha256:9999999999999999999999999999999999999999999999999
+kubeadm join k8-masters-lb-eb5662ac69efbc94.elb.us-east-1.amazonaws.com:6443 --token sh4896.h8sam6a06kym157f --discovery-token-ca-cert-hash sha256:1eadd37aaf2f09a591e5b42c438dd0b7517f585fe0db0afbe641feccf3138742 
