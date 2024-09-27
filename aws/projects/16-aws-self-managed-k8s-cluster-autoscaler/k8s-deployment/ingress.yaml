@@ -1,14 +1,14 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: sample-ingress
+  name: mongodb-ingress
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
   ingressClassName: nginx-alb
   rules:
-  - host: k8-workers-alb-640240075.us-east-1.elb.amazonaws.com
+  - host: k8-workers-alb-143975956.us-east-1.elb.amazonaws.com
     http:
       paths:
       - path: /
@@ -16,5 +16,12 @@ spec:
         backend:
           service:
             name: nginx-service
+            port:
+              number: 80
+      - path: /sample
+        pathType: Prefix
+        backend:
+          service:
+            name: sample-app
             port:
               number: 80
