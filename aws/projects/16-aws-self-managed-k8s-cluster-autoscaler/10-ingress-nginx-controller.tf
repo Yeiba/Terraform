@@ -1,3 +1,27 @@
+
+resource "null_resource" "move_manifest_files" {
+  triggers = {
+    always_run = timestamp()
+  }
+
+  connection {
+    type        = "ssh"
+    host        = aws_instance.bastion.public_ip
+    user        = var.ssh_user
+    private_key = tls_private_key.ssh.private_key_pem
+    insecure    = true
+    agent       = false
+  }
+  
+  provisioner "local-exec" {
+    command = <<EOT
+      sleep 20
+      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${path.module}/k8s-deployment/ingress-nginx-nlb-4-10.0.yaml ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/ingress-nginx-nlb-4-10.0.yaml
+      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${path.module}/k8s-deployment/ingress-nginx-alb-4-10.0.yaml ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/ingress-nginx-alb-4-10.0.yaml
+    EOT
+  }
+}
+
 resource "null_resource" "get_pod_ip_ingress_port" {
   depends_on = [aws_autoscaling_group.worker_asg]
   triggers = {

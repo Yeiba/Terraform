@@ -21,17 +21,15 @@ If the NGINX Ingress Controller is deployed, you need to modify its Service to b
    kubectl get svc -n ingress-nginx
    ```
 2. Edit the service:
-
-1. Using NodePort Instead of LoadBalancer
-If your environment does not support an external load balancer (e.g., a self-managed Kubernetes cluster), you can change the ingress-nginx-controller service to use NodePort instead of LoadBalancer. Here’s how you can do it:
+3. Using NodePort Instead of LoadBalancer
+   If your environment does not support an external load balancer (e.g., a self-managed Kubernetes cluster), you can change the ingress-nginx-controller service to use NodePort instead of LoadBalancer. Here’s how you can do it:
 
    ```bash
    kubectl edit svc ingress-nginx-controller -n ingress-nginx
    ```
-3. Modify the service YAML file to include these fields:
+4. Modify the service YAML file to include these fields:
 
 kubectl edit svc ingress-nginx-controller -n ingress-nginx
-
 
 ```yaml
 apiVersion: v1
@@ -151,19 +149,17 @@ This Ingress definition routes traffic for `example.com` to `my-service` and use
 
 This approach ensures that your NGINX Ingress Controller is exposed through an ALB with SSL termination.
 
-
-
-
 Yes, you can attach a **Network Load Balancer (NLB)** to the **Ingress NGINX Controller's external IP address** in a Kubernetes cluster. This is a common setup when you want to use the NLB for Layer 4 (TCP/UDP) routing, combined with NGINX Ingress for Layer 7 (HTTP/HTTPS) routing. Here's how you can achieve this setup and what it entails.
 
 ### How It Works:
 
 1. **Network Load Balancer (NLB)**:
+
    - The NLB operates at Layer 4, handling TCP/UDP traffic. It can forward traffic to the Kubernetes nodes running the NGINX Ingress Controller.
    - The NLB can be configured to point to the external IP addresses of the Kubernetes nodes where the NGINX Ingress Controller is running.
    - The NLB forwards the traffic to the Ingress Controller, which handles Layer 7 routing (e.g., HTTP/HTTPS).
-
 2. **Ingress NGINX Controller**:
+
    - The NGINX Ingress Controller operates at Layer 7 (application layer). It receives the traffic from the NLB and applies routing rules (e.g., path-based, host-based routing).
    - The Ingress Controller manages the traffic for the services running inside your Kubernetes cluster.
    - You typically expose the NGINX Ingress Controller using a **Service of type LoadBalancer** or **Service of type NodePort**.
@@ -177,17 +173,18 @@ Yes, you can attach a **Network Load Balancer (NLB)** to the **Ingress NGINX Con
    - **Type NodePort**: Exposes the Ingress Controller on a specific port across all the nodes, which can then be manually attached to an NLB.
 
    Example for Helm installation:
+
    ```bash
    helm install ingress-nginx ingress-nginx \
      --repo https://kubernetes.github.io/ingress-nginx \
      --namespace ingress-nginx \
      --set controller.service.type=LoadBalancer
    ```
-
 2. **Set NLB Annotations (AWS Specific)**:
    To ensure the Ingress NGINX Controller uses an NLB, you can add annotations to the Ingress Service. These annotations inform AWS to provision an NLB instead of an Application Load Balancer (ALB).
 
    Example of a `Service` manifest with NLB-specific annotations:
+
    ```yaml
    apiVersion: v1
    kind: Service
@@ -212,11 +209,11 @@ Yes, you can attach a **Network Load Balancer (NLB)** to the **Ingress NGINX Con
 
    - `service.beta.kubernetes.io/aws-load-balancer-type: "nlb"`: This tells AWS to use a Network Load Balancer instead of an Application Load Balancer.
    - `service.beta.kubernetes.io/aws-load-balancer-internal: "true"`: (Optional) If you want the NLB to be internal and not publicly accessible.
-
 3. **Manual NLB Attachment (NodePort Service)**:
    If you use a `NodePort` service for the NGINX Ingress Controller, you need to manually create the NLB and configure its target groups to point to the Kubernetes worker nodes on the NodePort range (typically 30000-32767).
 
    Steps:
+
    - Manually create an NLB in the AWS console or via Terraform/CloudFormation.
    - Create target groups pointing to the Kubernetes worker node IPs on the NodePort of the NGINX Ingress Controller.
    - Update your NLB listeners to forward traffic (TCP/UDP) to the target groups.
@@ -247,5 +244,88 @@ Yes, you can attach a **Network Load Balancer (NLB)** to the **Ingress NGINX Con
                                                    (Private Subnet)
 ```
 
+### Conclusion
+
+Following these steps will set up Grafana and Prometheus in your Kubernetes cluster and enable access to Grafana via the ALB using Ingress. If you encounter any issues or have further questions, feel free to ask!
+
+```
+sudo helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+sudo helm repo update
+sudo helm install metrics-server metrics-server/metrics-server --namespace kube-system
+
+
+sudo helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+sudo helm repo update
+
+sudo helm install prometheus-stack prometheus-community/kube-prometheus-stack \
+  --set grafana.enabled=true \
+  --set grafana.replicaCount=3 \
+  --set prometheus.prometheusSpec.replicas=3 \
+  --set grafana.ingress.enabled=true \
+  --set grafana.ingress.ingressClassName=nginx-alb
+```
+
+To get the username and password for logging into Grafana, you'll need to retrieve them from the Kubernetes secrets created by the Helm chart. Here's how you can do that:
+
+1. First, find the name of the Grafana secret:
+
+```bash
+kubectl get secrets | grep grafana
+```
+
+Look for a secret named something like `prometheus-stack-grafana`. The exact name may vary depending on your release name.
+
+2. Once you have the secret name, you can decode the username and password:
+
+For the username:
+
+```bash
+kubectl get secret prometheus-stack-grafana -o jsonpath="{.data.admin-user}" | base64 --decode
+```
+
+For the password:
+
+```bash
+kubectl get secret prometheus-stack-grafana -o jsonpath="{.data.admin-password}" | base64 --decode
+```
+
+Replace `prometheus-stack-grafana` with the actual name of your Grafana secret if it's different.
+
+3. If you want to see both at once, you can use:
+
+```bash
+echo "Username: $(kubectl get secret prometheus-stack-grafana -o jsonpath="{.data.admin-user}" | base64 --decode)"
+echo "Password: $(kubectl get secret prometheus-stack-grafana -o jsonpath="{.data.admin-password}" | base64 --decode)"
+```
+
+Remember that the default username is typically "admin", but the password is usually randomly generated for security reasons.
+
+4. If you want to change the password, you can do so through the Grafana UI after logging in, or by updating the Kubernetes secret and restarting the Grafana pod.
+
+Important security note: Be cautious with how you handle these credentials, especially the password. Avoid storing them in plain text or sharing them insecurely.
+
+Would you like me to explain how to change the password or set up a more secure authentication method for Grafana?
+
 ### Conclusion:
+
 Yes, attaching an **NLB** to the **Ingress NGINX Controller's external IP address** is a valid approach and can be implemented efficiently in AWS using Kubernetes annotations. This setup allows you to combine the low-latency routing of NLB with the advanced HTTP routing capabilities of the NGINX Ingress Controller.
+
+
+# jenkins
+
+
+You're correct! The command to retrieve the initial admin password for Jenkins should be executed on a specific pod, not the service. Here’s how you can do it:
+
+1. **Get the name of the Jenkins pod:**
+
+   ```bash
+   kubectl get pods --namespace default -l app=jenkins
+   ```
+2. **Execute the command on the specific pod:**
+   Replace `<jenkins-pod-name>` with the name of the Jenkins pod you found in the previous step.
+
+   ```bash
+   kubectl exec --namespace default -it <jenkins-last-pod-name> -- cat /var/jenkins_home/secrets/initialAdminPassword
+   ```
+
+This should correctly retrieve the initial admin password for Jenkins. If you still have issues, please check the logs of the pod or ensure Jenkins has started successfully.

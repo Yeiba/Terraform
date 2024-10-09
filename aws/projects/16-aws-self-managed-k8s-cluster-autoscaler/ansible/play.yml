@@ -113,6 +113,10 @@
        state: present
        force: yes
 
+   - name: Sleep for 20 seconds
+     wait_for:
+      timeout: 20
+      
    - name: Start the cluster
      shell: kubeadm init --pod-network-cidr=192.168.0.0/16 --cri-socket /run/cri-dockerd.sock --control-plane-endpoint "{{ master_lb }}":6443 --upload-certs >> cluster.txt
      register: result
@@ -200,6 +204,10 @@
       path: /tmp/join_command.sh
       regexp: "--token"
       replace: "--cri-socket='/run/cri-dockerd.sock' --token"
+
+   - name: Sleep for 20 seconds
+     wait_for:
+      timeout: 20
 
    - name: Join the master node to cluster
      command: sh /tmp/join_command.sh

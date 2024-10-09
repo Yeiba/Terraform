@@ -19,9 +19,7 @@ resource "null_resource" "get_first_master_ip" {
       sleep 20
       sed -n '/\[masters_first\]/,/\[masters_others\]/p' inventory | awk '{print $2}' | grep  ansible_host= | cut -d '=' -f 2 > ${path.module}/temp/master_ip
       chmod 600 ${path.module}/k8_ssh_key.pem
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${path.module}/temp/master_ip ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/master_ip 
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${path.module}/k8s-deployment/ingress-nginx-nlb-4-10.0.yaml ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/ingress-nginx-nlb-4-10.0.yaml
-      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${path.module}/k8s-deployment/ingress-nginx-alb-4-10.0.yaml ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/ingress-nginx-alb-4-10.0.yaml
+      scp -i ${path.module}/k8_ssh_key.pem -o StrictHostKeyChecking=no ${path.module}/temp/master_ip ${var.ssh_user}@${aws_instance.bastion.public_ip}:/tmp/master_ip
     EOT
   }
 }
@@ -217,6 +215,14 @@ resource "aws_launch_template" "worker_launch_template" {
     create_before_destroy = true
   }
 
+  monitoring {
+    enabled = true
+  }
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.worker_profile.name
+  }
+
   tag_specifications {
     resource_type = "instance"
 
@@ -231,7 +237,7 @@ resource "aws_autoscaling_group" "worker_asg" {
     id      = aws_launch_template.worker_launch_template.id
     version = "$Latest"
   }
-
+  name = "worker_asg"
   vpc_zone_identifier = module.vpc.private_subnets
 
   min_size = var.min_worker_nodes
@@ -254,14 +260,12 @@ resource "aws_autoscaling_group" "worker_asg" {
   }
 }
 
-
-
 resource "aws_autoscaling_policy" "scale_out" {
   name                   = "scale-out"
   scaling_adjustment      = 1
   adjustment_type         = "ChangeInCapacity"
   cooldown               = 300
-  autoscaling_group_name  = aws_autoscaling_group.worker_asg.id
+  autoscaling_group_name  = aws_autoscaling_group.worker_asg.name
 }
 
 resource "aws_autoscaling_policy" "scale_in" {
@@ -269,36 +273,37 @@ resource "aws_autoscaling_policy" "scale_in" {
   scaling_adjustment      = -1
   adjustment_type         = "ChangeInCapacity"
   cooldown               = 300
-  autoscaling_group_name  = aws_autoscaling_group.worker_asg.id
+  autoscaling_group_name  = aws_autoscaling_group.worker_asg.name
 }
+
+#CPU scaling
 
 resource "aws_cloudwatch_metric_alarm" "high_cpu_utilization" {
   alarm_name                = "high_cpu_utilization"
-  comparison_operator       = "GreaterThanThreshold"
-  evaluation_periods        = "2"
+  comparison_operator       = "GreaterThanOrEqualToThreshold"
+  evaluation_periods        = "1"
   metric_name               = "CPUUtilization"
   namespace                 = "AWS/EC2"
-  period                    = "120"
+  period                    = "60"
   statistic                 = "Average"
-  threshold                 = "80"
+  threshold                 = "10"
   alarm_actions             = [aws_autoscaling_policy.scale_out.arn]
   dimensions = {
-    AutoScalingGroupName = aws_autoscaling_group.worker_asg.id
+    AutoScalingGroupName = aws_autoscaling_group.worker_asg.name
   }
 }
 
 resource "aws_cloudwatch_metric_alarm" "low_cpu_utilization" {
   alarm_name                = "low_cpu_utilization"
-  comparison_operator       = "LessThanThreshold"
-  evaluation_periods        = "2"
+  comparison_operator       = "LessThanOrEqualToThreshold"
+  evaluation_periods        = "1"
   metric_name               = "CPUUtilization"
   namespace                 = "AWS/EC2"
-  period                    = "120"
+  period                    = "60"
   statistic                 = "Average"
-  threshold                 = "20"
+  threshold                 = "5"
   alarm_actions             = [aws_autoscaling_policy.scale_in.arn]
   dimensions = {
-    AutoScalingGroupName = aws_autoscaling_group.worker_asg.id
+    AutoScalingGroupName = aws_autoscaling_group.worker_asg.name
   }
 }
-

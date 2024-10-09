@@ -1,27 +1,29 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: mongodb-ingress
+  name: sample-ingress
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: 200m
 spec:
   ingressClassName: nginx-alb
   rules:
-  - host: k8-workers-alb-143975956.us-east-1.elb.amazonaws.com
+  - host: k8-workers-alb-744373248.us-east-1.elb.amazonaws.com
     http:
       paths:
-      - path: /
+      - path: /nginx
         pathType: Prefix
         backend:
           service:
             name: nginx-service
             port:
-              number: 80
-      - path: /sample
+              number: 80 
+
+      - path: /
         pathType: Prefix
         backend:
           service:
-            name: sample-app
+            name: jenkins 
             port:
-              number: 80
+              number: 8080
